@@ -6,8 +6,10 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Force.Crc32;
 
-namespace BetterJoyForCemu {
-    class UdpServer {
+namespace EvenBetterJoy
+{
+    class UdpServer
+    {
         private Socket udpSock;
         private uint serverId;
         private bool running;
@@ -17,11 +19,13 @@ namespace BetterJoyForCemu {
 
         public MainForm form;
 
-        public UdpServer(IList<Joycon> p) {
+        public UdpServer(IList<Joycon> p)
+        {
             controllers = p;
         }
 
-        enum MessageType {
+        enum MessageType
+        {
             DSUC_VersionReq = 0x100000,
             DSUS_VersionRsp = 0x100000,
             DSUC_ListPorts = 0x100001,
@@ -32,7 +36,8 @@ namespace BetterJoyForCemu {
 
         private const ushort MaxProtocolVersion = 1001;
 
-        class ClientRequestTimes {
+        class ClientRequestTimes
+        {
             DateTime allPads;
             DateTime[] padIds;
             Dictionary<PhysicalAddress, DateTime> padMacs;
@@ -41,7 +46,8 @@ namespace BetterJoyForCemu {
             public DateTime[] PadIdsTime { get { return padIds; } }
             public Dictionary<PhysicalAddress, DateTime> PadMacsTime { get { return padMacs; } }
 
-            public ClientRequestTimes() {
+            public ClientRequestTimes()
+            {
                 allPads = DateTime.MinValue;
                 padIds = new DateTime[4];
 
@@ -51,10 +57,12 @@ namespace BetterJoyForCemu {
                 padMacs = new Dictionary<PhysicalAddress, DateTime>();
             }
 
-            public void RequestPadInfo(byte regFlags, byte idToReg, PhysicalAddress macToReg) {
+            public void RequestPadInfo(byte regFlags, byte idToReg, PhysicalAddress macToReg)
+            {
                 if (regFlags == 0)
                     allPads = DateTime.UtcNow;
-                else {
+                else
+                {
                     if ((regFlags & 0x01) != 0) //id valid
                     {
                         if (idToReg < padIds.Length)
@@ -70,7 +78,8 @@ namespace BetterJoyForCemu {
 
         private Dictionary<IPEndPoint, ClientRequestTimes> clients = new Dictionary<IPEndPoint, ClientRequestTimes>();
 
-        private int BeginPacket(byte[] packetBuf, ushort reqProtocolVersion = MaxProtocolVersion) {
+        private int BeginPacket(byte[] packetBuf, ushort reqProtocolVersion = MaxProtocolVersion)
+        {
             int currIdx = 0;
             packetBuf[currIdx++] = (byte)'D';
             packetBuf[currIdx++] = (byte)'S';
@@ -92,14 +101,16 @@ namespace BetterJoyForCemu {
             return currIdx;
         }
 
-        private void FinishPacket(byte[] packetBuf) {
+        private void FinishPacket(byte[] packetBuf)
+        {
             Array.Clear(packetBuf, 8, 4);
 
             uint crcCalc = Crc32Algorithm.Compute(packetBuf);
             Array.Copy(BitConverter.GetBytes((uint)crcCalc), 0, packetBuf, 8, 4);
         }
 
-        private void SendPacket(IPEndPoint clientEP, byte[] usefulData, ushort reqProtocolVersion = MaxProtocolVersion) {
+        private void SendPacket(IPEndPoint clientEP, byte[] usefulData, ushort reqProtocolVersion = MaxProtocolVersion)
+        {
             byte[] packetData = new byte[usefulData.Length + 16];
             int currIdx = BeginPacket(packetData, reqProtocolVersion);
             Array.Copy(usefulData, 0, packetData, currIdx, usefulData.Length);
@@ -108,8 +119,10 @@ namespace BetterJoyForCemu {
             try { udpSock.SendTo(packetData, clientEP); } catch (Exception e) { }
         }
 
-        private void ProcessIncoming(byte[] localMsg, IPEndPoint clientEP) {
-            try {
+        private void ProcessIncoming(byte[] localMsg, IPEndPoint clientEP)
+        {
+            try
+            {
                 int currIdx = 0;
                 if (localMsg[0] != 'D' || localMsg[1] != 'S' || localMsg[2] != 'U' || localMsg[3] != 'C')
                     return;
@@ -131,7 +144,8 @@ namespace BetterJoyForCemu {
                 packetSize += 16; //size of header
                 if (packetSize > localMsg.Length)
                     return;
-                else if (packetSize < localMsg.Length) {
+                else if (packetSize < localMsg.Length)
+                {
                     byte[] newMsg = new byte[packetSize];
                     Array.Copy(localMsg, newMsg, packetSize);
                     localMsg = newMsg;
@@ -154,7 +168,8 @@ namespace BetterJoyForCemu {
                 uint messageType = BitConverter.ToUInt32(localMsg, currIdx);
                 currIdx += 4;
 
-                if (messageType == (uint)MessageType.DSUC_VersionReq) {
+                if (messageType == (uint)MessageType.DSUC_VersionReq)
+                {
                     byte[] outputData = new byte[8];
                     int outIdx = 0;
                     Array.Copy(BitConverter.GetBytes((uint)MessageType.DSUS_VersionRsp), 0, outputData, outIdx, 4);
@@ -165,7 +180,9 @@ namespace BetterJoyForCemu {
                     outputData[outIdx++] = 0;
 
                     SendPacket(clientEP, outputData, 1001);
-                } else if (messageType == (uint)MessageType.DSUC_ListPorts) {
+                }
+                else if (messageType == (uint)MessageType.DSUC_ListPorts)
+                {
                     // Requested information on gamepads - return MAC address
                     int numPadRequests = BitConverter.ToInt32(localMsg, currIdx);
                     currIdx += 4;
@@ -173,14 +190,16 @@ namespace BetterJoyForCemu {
                         return;
 
                     int requestsIdx = currIdx;
-                    for (int i = 0; i < numPadRequests; i++) {
+                    for (int i = 0; i < numPadRequests; i++)
+                    {
                         byte currRequest = localMsg[requestsIdx + i];
                         if (currRequest < 0 || currRequest > 4)
                             return;
                     }
 
                     byte[] outputData = new byte[16];
-                    for (byte i = 0; i < numPadRequests; i++) {
+                    for (byte i = 0; i < numPadRequests; i++)
+                    {
                         byte currRequest = localMsg[requestsIdx + i];
                         var padData = controllers[i];//controllers[currRequest];
 
@@ -194,14 +213,17 @@ namespace BetterJoyForCemu {
                         outputData[outIdx++] = (byte)padData.connection;
 
                         var addressBytes = padData.PadMacAddress.GetAddressBytes();
-                        if (addressBytes.Length == 6) {
+                        if (addressBytes.Length == 6)
+                        {
                             outputData[outIdx++] = addressBytes[0];
                             outputData[outIdx++] = addressBytes[1];
                             outputData[outIdx++] = addressBytes[2];
                             outputData[outIdx++] = addressBytes[3];
                             outputData[outIdx++] = addressBytes[4];
                             outputData[outIdx++] = addressBytes[5];
-                        } else {
+                        }
+                        else
+                        {
                             outputData[outIdx++] = 0;
                             outputData[outIdx++] = 0;
                             outputData[outIdx++] = 0;
@@ -215,7 +237,9 @@ namespace BetterJoyForCemu {
 
                         SendPacket(clientEP, outputData, 1001);
                     }
-                } else if (messageType == (uint)MessageType.DSUC_PadDataReq) {
+                }
+                else if (messageType == (uint)MessageType.DSUC_PadDataReq)
+                {
                     byte regFlags = localMsg[currIdx++];
                     byte idToReg = localMsg[currIdx++];
                     PhysicalAddress macToReg = null;
@@ -226,48 +250,60 @@ namespace BetterJoyForCemu {
                         macToReg = new PhysicalAddress(macBytes);
                     }
 
-                    lock (clients) {
+                    lock (clients)
+                    {
                         if (clients.ContainsKey(clientEP))
                             clients[clientEP].RequestPadInfo(regFlags, idToReg, macToReg);
-                        else {
+                        else
+                        {
                             var clientTimes = new ClientRequestTimes();
                             clientTimes.RequestPadInfo(regFlags, idToReg, macToReg);
                             clients[clientEP] = clientTimes;
                         }
                     }
                 }
-            } catch (Exception e) { }
+            }
+            catch (Exception e) { }
         }
 
-        private void ReceiveCallback(IAsyncResult iar) {
+        private void ReceiveCallback(IAsyncResult iar)
+        {
             byte[] localMsg = null;
             EndPoint clientEP = new IPEndPoint(IPAddress.Any, 0);
 
-            try {
+            try
+            {
                 //Get the received message.
                 Socket recvSock = (Socket)iar.AsyncState;
                 int msgLen = recvSock.EndReceiveFrom(iar, ref clientEP);
 
                 localMsg = new byte[msgLen];
                 Array.Copy(recvBuffer, localMsg, msgLen);
-            } catch (Exception e) { }
+            }
+            catch (Exception e) { }
 
             //Start another receive as soon as we copied the data
             StartReceive();
 
             //Process the data if its valid
-            if (localMsg != null) {
+            if (localMsg != null)
+            {
                 ProcessIncoming(localMsg, (IPEndPoint)clientEP);
             }
         }
-        private void StartReceive() {
-            try {
-                if (running) {
+        private void StartReceive()
+        {
+            try
+            {
+                if (running)
+                {
                     //Start listening for a new message.
                     EndPoint newClientEP = new IPEndPoint(IPAddress.Any, 0);
                     udpSock.BeginReceiveFrom(recvBuffer, 0, recvBuffer.Length, SocketFlags.None, ref newClientEP, ReceiveCallback, udpSock);
                 }
-            } catch (SocketException ex) {
+            }
+            catch (SocketException ex)
+            {
                 uint IOC_IN = 0x80000000;
                 uint IOC_VENDOR = 0x18000000;
                 uint SIO_UDP_CONNRESET = IOC_IN | IOC_VENDOR | 12;
@@ -277,14 +313,18 @@ namespace BetterJoyForCemu {
             }
         }
 
-        public void Start(IPAddress ip, int port = 26760) {
-            if (!Boolean.Parse(ConfigurationManager.AppSettings["MotionServer"])) {
+        public void Start(IPAddress ip, int port = 26760)
+        {
+            if (!Boolean.Parse(ConfigurationManager.AppSettings["MotionServer"]))
+            {
                 form.console.AppendText("Motion server is OFF.\r\n");
                 return;
             }
 
-            if (running) {
-                if (udpSock != null) {
+            if (running)
+            {
+                if (udpSock != null)
+                {
                     udpSock.Close();
                     udpSock = null;
                 }
@@ -292,7 +332,9 @@ namespace BetterJoyForCemu {
             }
 
             udpSock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-            try { udpSock.Bind(new IPEndPoint(ip, port)); } catch (SocketException ex) {
+            try { udpSock.Bind(new IPEndPoint(ip, port)); }
+            catch (SocketException ex)
+            {
                 udpSock.Close();
                 udpSock = null;
 
@@ -309,15 +351,18 @@ namespace BetterJoyForCemu {
             StartReceive();
         }
 
-        public void Stop() {
+        public void Stop()
+        {
             running = false;
-            if (udpSock != null) {
+            if (udpSock != null)
+            {
                 udpSock.Close();
                 udpSock = null;
             }
         }
 
-        private bool ReportToBuffer(Joycon hidReport, byte[] outputData, ref int outIdx) {
+        private bool ReportToBuffer(Joycon hidReport, byte[] outputData, ref int outIdx)
+        {
             var ds4 = Joycon.MapToDualShock4Input(hidReport);
 
             outputData[outIdx] = 0;
@@ -372,7 +417,8 @@ namespace BetterJoyForCemu {
             outIdx++;
 
             //DS4 only: touchpad points
-            for (int i = 0; i < 2; i++) {
+            for (int i = 0; i < 2; i++)
+            {
                 outIdx += 6;
             }
 
@@ -383,14 +429,17 @@ namespace BetterJoyForCemu {
             //accelerometer
             {
                 var accel = hidReport.GetAccel();
-                if (accel != null) {
+                if (accel != null)
+                {
                     Array.Copy(BitConverter.GetBytes(accel.Y), 0, outputData, outIdx, 4);
                     outIdx += 4;
                     Array.Copy(BitConverter.GetBytes(-accel.Z), 0, outputData, outIdx, 4);
                     outIdx += 4;
                     Array.Copy(BitConverter.GetBytes(accel.X), 0, outputData, outIdx, 4);
                     outIdx += 4;
-                } else {
+                }
+                else
+                {
                     outIdx += 12;
                     Console.WriteLine("No accelerometer reported.");
                 }
@@ -399,14 +448,17 @@ namespace BetterJoyForCemu {
             //gyroscope
             {
                 var gyro = hidReport.GetGyro();
-                if (gyro != null) {
+                if (gyro != null)
+                {
                     Array.Copy(BitConverter.GetBytes(gyro.Y), 0, outputData, outIdx, 4);
                     outIdx += 4;
                     Array.Copy(BitConverter.GetBytes(gyro.Z), 0, outputData, outIdx, 4);
                     outIdx += 4;
                     Array.Copy(BitConverter.GetBytes(gyro.X), 0, outputData, outIdx, 4);
                     outIdx += 4;
-                } else {
+                }
+                else
+                {
                     outIdx += 12;
                     Console.WriteLine("No gyroscope reported.");
                 }
@@ -415,16 +467,19 @@ namespace BetterJoyForCemu {
             return true;
         }
 
-        public void NewReportIncoming(Joycon hidReport) {
+        public void NewReportIncoming(Joycon hidReport)
+        {
             if (!running)
                 return;
 
             var clientsList = new List<IPEndPoint>();
             var now = DateTime.UtcNow;
-            lock (clients) {
+            lock (clients)
+            {
                 var clientsToDelete = new List<IPEndPoint>();
 
-                foreach (var cl in clients) {
+                foreach (var cl in clients)
+                {
                     const double TimeoutLimit = 5;
 
                     if ((now - cl.Value.AllPadsTime).TotalSeconds < TimeoutLimit)
@@ -438,17 +493,22 @@ namespace BetterJoyForCemu {
                     else //check if this client is totally dead, and remove it if so
                     {
                         bool clientOk = false;
-                        for (int i = 0; i < cl.Value.PadIdsTime.Length; i++) {
+                        for (int i = 0; i < cl.Value.PadIdsTime.Length; i++)
+                        {
                             var dur = (now - cl.Value.PadIdsTime[i]).TotalSeconds;
-                            if (dur < TimeoutLimit) {
+                            if (dur < TimeoutLimit)
+                            {
                                 clientOk = true;
                                 break;
                             }
                         }
-                        if (!clientOk) {
-                            foreach (var dict in cl.Value.PadMacsTime) {
+                        if (!clientOk)
+                        {
+                            foreach (var dict in cl.Value.PadMacsTime)
+                            {
                                 var dur = (now - dict.Value).TotalSeconds;
-                                if (dur < TimeoutLimit) {
+                                if (dur < TimeoutLimit)
+                                {
                                     clientOk = true;
                                     break;
                                 }
@@ -460,7 +520,8 @@ namespace BetterJoyForCemu {
                     }
                 }
 
-                foreach (var delCl in clientsToDelete) {
+                foreach (var delCl in clientsToDelete)
+                {
                     clients.Remove(delCl);
                 }
                 clientsToDelete.Clear();
@@ -500,7 +561,8 @@ namespace BetterJoyForCemu {
             else
                 FinishPacket(outputData);
 
-            foreach (var cl in clientsList) {
+            foreach (var cl in clientsList)
+            {
                 try { udpSock.SendTo(outputData, cl); } catch (SocketException ex) { }
             }
             clientsList.Clear();

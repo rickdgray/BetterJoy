@@ -1,16 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Diagnostics;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace BetterJoyForCemu {
-    public partial class Reassign : Form {
+namespace EvenBetterJoy
+{
+    public partial class Reassign : Form
+    {
         private WindowsInput.Events.Sources.IKeyboardEventSource keyboard;
         private WindowsInput.Events.Sources.IMouseEventSource mouse;
 
@@ -18,10 +12,12 @@ namespace BetterJoyForCemu {
 
         private Control curAssignment;
 
-        public Reassign() {
+        public Reassign()
+        {
             InitializeComponent();
 
-            foreach (int i in Enum.GetValues(typeof(Joycon.Button))) {
+            foreach (int i in Enum.GetValues(typeof(Joycon.Button)))
+            {
                 ToolStripMenuItem temp = new ToolStripMenuItem(Enum.GetName(typeof(Joycon.Button), i));
                 temp.Tag = i;
                 menu_joy_buttons.Items.Add(temp);
@@ -29,7 +25,8 @@ namespace BetterJoyForCemu {
 
             menu_joy_buttons.ItemClicked += Menu_joy_buttons_ItemClicked;
 
-            foreach (SplitButton c in new SplitButton[] { btn_capture, btn_home, btn_sl_l, btn_sl_r, btn_sr_l, btn_sr_r, btn_shake, btn_reset_mouse, btn_active_gyro }) {
+            foreach (SplitButton c in new SplitButton[] { btn_capture, btn_home, btn_sl_l, btn_sl_r, btn_sr_l, btn_sr_r, btn_shake, btn_reset_mouse, btn_active_gyro })
+            {
                 c.Tag = c.Name.Substring(4);
                 GetPrettyName(c);
 
@@ -40,7 +37,8 @@ namespace BetterJoyForCemu {
             }
         }
 
-        private void Menu_joy_buttons_ItemClicked(object sender, ToolStripItemClickedEventArgs e) {
+        private void Menu_joy_buttons_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
+        {
             Control c = sender as Control;
 
             ToolStripItem clickedItem = e.ClickedItem;
@@ -50,9 +48,11 @@ namespace BetterJoyForCemu {
             GetPrettyName(caller);
         }
 
-        private void Remap(object sender, MouseEventArgs e) {
+        private void Remap(object sender, MouseEventArgs e)
+        {
             SplitButton c = sender as SplitButton;
-            switch (e.Button) {
+            switch (e.Button)
+            {
                 case MouseButtons.Left:
                     c.Text = "...";
                     curAssignment = c;
@@ -66,15 +66,18 @@ namespace BetterJoyForCemu {
             }
         }
 
-        private void Reassign_Load(object sender, EventArgs e) {
+        private void Reassign_Load(object sender, EventArgs e)
+        {
             keyboard = WindowsInput.Capture.Global.KeyboardAsync();
             keyboard.KeyEvent += Keyboard_KeyEvent;
             mouse = WindowsInput.Capture.Global.MouseAsync();
             mouse.MouseEvent += Mouse_MouseEvent;
         }
 
-        private void Mouse_MouseEvent(object sender, WindowsInput.Events.Sources.EventSourceEventArgs<WindowsInput.Events.Sources.MouseEvent> e) {
-            if (curAssignment != null && e.Data.ButtonDown != null) {
+        private void Mouse_MouseEvent(object sender, WindowsInput.Events.Sources.EventSourceEventArgs<WindowsInput.Events.Sources.MouseEvent> e)
+        {
+            if (curAssignment != null && e.Data.ButtonDown != null)
+            {
                 Config.SetValue((string)curAssignment.Tag, "mse_" + ((int)e.Data.ButtonDown.Button));
                 AsyncPrettyName(curAssignment);
                 curAssignment = null;
@@ -82,8 +85,10 @@ namespace BetterJoyForCemu {
             }
         }
 
-        private void Keyboard_KeyEvent(object sender, WindowsInput.Events.Sources.EventSourceEventArgs<WindowsInput.Events.Sources.KeyboardEvent> e) {
-            if (curAssignment != null && e.Data.KeyDown != null) {
+        private void Keyboard_KeyEvent(object sender, WindowsInput.Events.Sources.EventSourceEventArgs<WindowsInput.Events.Sources.KeyboardEvent> e)
+        {
+            if (curAssignment != null && e.Data.KeyDown != null)
+            {
                 Config.SetValue((string)curAssignment.Tag, "key_" + ((int)e.Data.KeyDown.Key));
                 AsyncPrettyName(curAssignment);
                 curAssignment = null;
@@ -91,22 +96,27 @@ namespace BetterJoyForCemu {
             }
         }
 
-        private void Reassign_FormClosing(object sender, FormClosingEventArgs e) {
+        private void Reassign_FormClosing(object sender, FormClosingEventArgs e)
+        {
             keyboard.Dispose();
             mouse.Dispose();
         }
 
-        private void AsyncPrettyName(Control c) {
-            if (InvokeRequired) {
+        private void AsyncPrettyName(Control c)
+        {
+            if (InvokeRequired)
+            {
                 this.Invoke(new Action<Control>(AsyncPrettyName), new object[] { c });
                 return;
             }
             GetPrettyName(c);
         }
 
-        private void GetPrettyName(Control c) {
+        private void GetPrettyName(Control c)
+        {
             string val;
-            switch (val = Config.Value((string)c.Tag)) {
+            switch (val = Config.GetValue((string)c.Tag))
+            {
                 case "0":
                     if (c == btn_home)
                         c.Text = "Guide";
@@ -120,11 +130,13 @@ namespace BetterJoyForCemu {
             }
         }
 
-        private void btn_apply_Click(object sender, EventArgs e) {
+        private void btn_apply_Click(object sender, EventArgs e)
+        {
             Config.Save();
         }
 
-        private void btn_close_Click(object sender, EventArgs e) {
+        private void btn_close_Click(object sender, EventArgs e)
+        {
             btn_apply_Click(sender, e);
             Close();
         }

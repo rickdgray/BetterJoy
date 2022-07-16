@@ -1,19 +1,17 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 // source: https://github.com/xioTechnologies/Open-Source-AHRS-With-x-IMU/blob/master/x-IMU%20IMU%20and%20AHRS%20Algorithms/x-IMU%20IMU%20and%20AHRS%20Algorithms/AHRS/MadgwickAHRS.cs
 
-namespace BetterJoyForCemu {
+namespace EvenBetterJoy
+{
     /// <summary>
     /// MadgwickAHRS class. Implementation of Madgwick's IMU and AHRS algorithms.
     /// </summary>
     /// <remarks>
     /// See: http://www.x-io.co.uk/node/8#open_source_ahrs_and_imu_algorithms
     /// </remarks>
-    public class MadgwickAHRS {
+    public class MadgwickAHRS
+    {
         /// <summary>
         /// Gets or sets the sample period.
         /// </summary>
@@ -38,7 +36,8 @@ namespace BetterJoyForCemu {
         /// Sample period.
         /// </param>
         public MadgwickAHRS(float samplePeriod)
-            : this(samplePeriod, 1f) {
+            : this(samplePeriod, 1f)
+        {
         }
 
         /// <summary>
@@ -50,7 +49,8 @@ namespace BetterJoyForCemu {
         /// <param name="beta">
         /// Algorithm gain beta.
         /// </param>
-        public MadgwickAHRS(float samplePeriod, float beta) {
+        public MadgwickAHRS(float samplePeriod, float beta)
+        {
             SamplePeriod = samplePeriod;
             Beta = beta;
             Quaternion = new float[] { 1f, 0f, 0f, 0f };
@@ -85,7 +85,8 @@ namespace BetterJoyForCemu {
         /// Total /: 3
         /// Total sqrt: 3
         /// </remarks>
-        public void Update(float gx, float gy, float gz, float ax, float ay, float az) {
+        public void Update(float gx, float gy, float gz, float ax, float ay, float az)
+        {
             float q1 = Quaternion[0], q2 = Quaternion[1], q3 = Quaternion[2], q4 = Quaternion[3];   // short name local variable for readability
             float norm;
             float s1, s2, s3, s4;
@@ -143,10 +144,11 @@ namespace BetterJoyForCemu {
             Quaternion[3] = q4 * norm;
         }
 
-        public float[] GetEulerAngles() {
+        public float[] GetEulerAngles()
+        {
             float[] pitchYawRoll = new float[3];
             float q0 = Quaternion[0], q1 = Quaternion[1], q2 = Quaternion[2], q3 = Quaternion[3];
-            float sq1 = q1 * q1, sq2 = q2 * q2, sq3 = q3 * q3;          
+            float sq1 = q1 * q1, sq2 = q2 * q2, sq3 = q3 * q3;
             pitchYawRoll[0] = (float)Math.Asin(2f * (q0 * q2 - q3 * q1));                            // Pitch 
             pitchYawRoll[1] = (float)Math.Atan2(2f * (q0 * q3 + q1 * q2), 1 - 2f * (sq2 + sq3));     // Yaw
             pitchYawRoll[2] = (float)Math.Atan2(2f * (q0 * q1 + q2 * q3), 1 - 2f * (sq1 + sq2));     // Roll 

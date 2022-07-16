@@ -1,84 +1,97 @@
 ﻿using System.ComponentModel;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
-namespace BetterJoyForCemu {
-	// from https://stackoverflow.com/a/27173509
-	public class SplitButton : Button {
-		[DefaultValue(null), Browsable(true),
-		DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
-		public ContextMenuStrip Menu { get; set; }
+namespace EvenBetterJoy
+{
+    // from https://stackoverflow.com/a/27173509
+    public class SplitButton : Button
+    {
+        [DefaultValue(null), Browsable(true),
+        DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
+        public ContextMenuStrip Menu { get; set; }
 
-		[DefaultValue(20), Browsable(true),
-		DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
-		public int SplitWidth { get; set; }
+        [DefaultValue(20), Browsable(true),
+        DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
+        public int SplitWidth { get; set; }
 
-		public SplitButton() {
-			SplitWidth = 20;
-		}
+        public SplitButton()
+        {
+            SplitWidth = 20;
+        }
 
-		protected override void OnMouseDown(MouseEventArgs mevent) {
-			var splitRect = new Rectangle(this.Width - this.SplitWidth, 0, this.SplitWidth, this.Height);
+        protected override void OnMouseDown(MouseEventArgs mevent)
+        {
+            var splitRect = new Rectangle(this.Width - this.SplitWidth, 0, this.SplitWidth, this.Height);
 
-			// Figure out if the button click was on the button itself or the menu split
-			if (Menu != null &&
-				((mevent.Button == MouseButtons.Left &&
-				splitRect.Contains(mevent.Location)) || mevent.Button == MouseButtons.Right)) {
-				Menu.Tag = this;
-				Menu.Show(this, 0, this.Height);    // Shows menu under button
-			} else {
-				base.OnMouseDown(mevent);
-			}
-		}
+            // Figure out if the button click was on the button itself or the menu split
+            if (Menu != null &&
+                ((mevent.Button == MouseButtons.Left &&
+                splitRect.Contains(mevent.Location)) || mevent.Button == MouseButtons.Right))
+            {
+                Menu.Tag = this;
+                Menu.Show(this, 0, this.Height);    // Shows menu under button
+            }
+            else
+            {
+                base.OnMouseDown(mevent);
+            }
+        }
 
-		protected override void OnPaint(PaintEventArgs pevent) {
-			base.OnPaint(pevent);
+        protected override void OnPaint(PaintEventArgs pevent)
+        {
+            base.OnPaint(pevent);
 
-			if (this.Menu != null && this.SplitWidth > 0) {
-				// Draw the arrow glyph on the right side of the button
-				int arrowX = ClientRectangle.Width - 14;
-				int arrowY = ClientRectangle.Height / 2 - 1;
+            if (this.Menu != null && this.SplitWidth > 0)
+            {
+                // Draw the arrow glyph on the right side of the button
+                int arrowX = ClientRectangle.Width - 14;
+                int arrowY = ClientRectangle.Height / 2 - 1;
 
-				var arrowBrush = Enabled ? SystemBrushes.ControlText : SystemBrushes.ButtonShadow;
-				var arrows = new[] { new Point(arrowX, arrowY), new Point(arrowX + 7, arrowY), new Point(arrowX + 3, arrowY + 4) };
-				pevent.Graphics.FillPolygon(arrowBrush, arrows);
+                var arrowBrush = Enabled ? SystemBrushes.ControlText : SystemBrushes.ButtonShadow;
+                var arrows = new[] { new Point(arrowX, arrowY), new Point(arrowX + 7, arrowY), new Point(arrowX + 3, arrowY + 4) };
+                pevent.Graphics.FillPolygon(arrowBrush, arrows);
 
-				// Draw a dashed separator on the left of the arrow
-				int lineX = ClientRectangle.Width - this.SplitWidth;
-				int lineYFrom = arrowY - 4;
-				int lineYTo = arrowY + 8;
-				using (var separatorPen = new Pen(Brushes.DarkGray) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dot }) {
-					pevent.Graphics.DrawLine(separatorPen, lineX, lineYFrom, lineX, lineYTo);
-				}
-			}
-		}
-	}
+                // Draw a dashed separator on the left of the arrow
+                int lineX = ClientRectangle.Width - this.SplitWidth;
+                int lineYFrom = arrowY - 4;
+                int lineYTo = arrowY + 8;
+                using (var separatorPen = new Pen(Brushes.DarkGray) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dot })
+                {
+                    pevent.Graphics.DrawLine(separatorPen, lineX, lineYFrom, lineX, lineYTo);
+                }
+            }
+        }
+    }
 
-	partial class Reassign {
-		/// <summary>
-		/// Required designer variable.
-		/// </summary>
-		private System.ComponentModel.IContainer components = null;
+    partial class Reassign
+    {
+        /// <summary>
+        /// Required designer variable.
+        /// </summary>
+        private System.ComponentModel.IContainer components = null;
 
-		/// <summary>
-		/// Clean up any resources being used.
-		/// </summary>
-		/// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
-		protected override void Dispose(bool disposing) {
-			if (disposing && (components != null)) {
-				components.Dispose();
-			}
-			base.Dispose(disposing);
-		}
+        /// <summary>
+        /// Clean up any resources being used.
+        /// </summary>
+        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+            {
+                components.Dispose();
+            }
+            base.Dispose(disposing);
+        }
 
-		#region Windows Form Designer generated code
+        #region Windows Form Designer generated code
 
-		/// <summary>
-		/// Required method for Designer support - do not modify
-		/// the contents of this method with the code editor.
-		/// </summary>
-		private void InitializeComponent() {
+        /// <summary>
+        /// Required method for Designer support - do not modify
+        /// the contents of this method with the code editor.
+        /// </summary>
+        private void InitializeComponent()
+        {
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Reassign));
             this.btn_capture = new BetterJoyForCemu.SplitButton();
@@ -322,29 +335,29 @@ namespace BetterJoyForCemu {
             this.ResumeLayout(false);
             this.PerformLayout();
 
-		}
+        }
 
-		#endregion
+        #endregion
 
-		private SplitButton btn_capture;
-		private System.Windows.Forms.Label lbl_capture;
-		private System.Windows.Forms.Label lbl_home;
-		private SplitButton btn_home;
-		private System.Windows.Forms.Label lbl_sl_l;
-		private SplitButton btn_sl_l;
-		private System.Windows.Forms.Label lbl_sr_l;
-		private SplitButton btn_sr_l;
-		private System.Windows.Forms.Label lbl_sl_r;
-		private SplitButton btn_sl_r;
-		private System.Windows.Forms.Label lbl_sr_r;
-		private SplitButton btn_sr_r;
-		private Button btn_close;
-		private Button btn_apply;
-		private System.Windows.Forms.ToolTip tip_reassign;
-		private System.Windows.Forms.Label lbl_reset_mouse;
-		private SplitButton btn_reset_mouse;
-		private Label lbl_activate_gyro;
-		private SplitButton btn_active_gyro;
+        private SplitButton btn_capture;
+        private System.Windows.Forms.Label lbl_capture;
+        private System.Windows.Forms.Label lbl_home;
+        private SplitButton btn_home;
+        private System.Windows.Forms.Label lbl_sl_l;
+        private SplitButton btn_sl_l;
+        private System.Windows.Forms.Label lbl_sr_l;
+        private SplitButton btn_sr_l;
+        private System.Windows.Forms.Label lbl_sl_r;
+        private SplitButton btn_sl_r;
+        private System.Windows.Forms.Label lbl_sr_r;
+        private SplitButton btn_sr_r;
+        private Button btn_close;
+        private Button btn_apply;
+        private System.Windows.Forms.ToolTip tip_reassign;
+        private System.Windows.Forms.Label lbl_reset_mouse;
+        private SplitButton btn_reset_mouse;
+        private Label lbl_activate_gyro;
+        private SplitButton btn_active_gyro;
         private Label lbl_shake;
         private SplitButton btn_shake;
     }

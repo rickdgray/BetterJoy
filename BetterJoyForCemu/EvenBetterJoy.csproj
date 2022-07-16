@@ -68,30 +68,17 @@
     <SignManifests>false</SignManifests>
   </PropertyGroup>
   <ItemGroup>
+    <Content Remove="C:\Users\rickd\.nuget\packages\windowsinput\6.4.0\contentFiles\any\netcoreapp3.1\.nuget\mouse-keyboard-hook-logo.png" />
+  </ItemGroup>
+  <ItemGroup>
     <Reference Include="System.ServiceProcess" />
   </ItemGroup>
   <ItemGroup>
     <None Update="! Install the drivers in the Drivers folder">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Include="Drivers\HIDGuardian\HIDGuardian Install %28Run as Admin%29.bat">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Include="Drivers\HIDGuardian\HIDGuardian Uninstall %28Run as Admin%29.bat">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Drivers\HIDGuardian\_drivers\HidCerberus.Srv\HidCerberus.Srv.exe.config">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Drivers\HIDGuardian\_drivers\HidGuardian\hidguardian.cat">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Drivers\HIDGuardian\_drivers\HidGuardian\HidGuardian.sys">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
   <ItemGroup>
-    <Content Include=".nuget\mouse-keyboard-hook-logo.png" />
     <Resource Include="Icons\jc_left.png" />
     <Resource Include="Icons\jc_right.png" />
     <Resource Include="Icons\pro.png" />
@@ -110,6 +97,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
     <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
     <PackageReference Include="Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers" Version="0.3.330701">
       <PrivateAssets>all</PrivateAssets>
