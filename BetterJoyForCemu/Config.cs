@@ -1,142 +1,162 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
+using BetterJoyForCemu.Models;
 
-namespace BetterJoyForCemu {
-	public static class Config { // stores dynamic configuration, including
-		static readonly string path;
-		static Dictionary<string, string> variables = new Dictionary<string, string>();
+namespace BetterJoyForCemu
+{
+    public static class Config
+    {
+        // stores dynamic configuration, including
+        static readonly string path;
+        static readonly Dictionary<string, string> Settings = new();
 
-		const int settingsNum = 11; // currently - ProgressiveScan, StartInTray + special buttons
+        // currently - ProgressiveScan, StartInTray + special buttons
+        const int SettingsNum = 11;
 
-        static Config() {
-            path = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + "\\settings";
+        static Config()
+        {
+            path = $"{Path.GetDirectoryName(AppContext.BaseDirectory)}\\settings";
         }
 
-		public static string GetDefaultValue(string s) {
-			switch (s) {
-				case "ProgressiveScan":
-					return "1";
-				case "capture":
-					return "key_" + ((int)WindowsInput.Events.KeyCode.PrintScreen);
-				case "reset_mouse":
-					return "joy_" + ((int)Joycon.Button.STICK);
-			}
-			return "0";
-		}
+        public static string GetDefaultValue(string s)
+        {
+            return s switch
+            {
+                "ProgressiveScan" => "1",
+                "capture" => $"key_{WindowsInput.Events.KeyCode.PrintScreen}",
+                "reset_mouse" => $"joy_{Joycon.Button.STICK}",
+                _ => "0",
+            };
+        }
 
-		// Helper function to count how many lines are in a file
-		// https://www.dotnetperls.com/line-count
-		static long CountLinesInFile(string f) {
-			// Zero based count
-			long count = -1;
-			using (StreamReader r = new StreamReader(f)) {
-				string line;
-				while ((line = r.ReadLine()) != null) {
-					count++;
-				}
-			}
-			return count;
-		}
+        //TODO: probably could just replace this whole thing with a json serializer
+        public static void Init(List<KeyValuePair<string, float[]>> caliData)
+        {
+            //TODO: this long string needs to be separated
+            foreach (var s in new string[] { "ProgressiveScan", "StartInTray", "capture", "home", "sl_l", "sl_r", "sr_l", "sr_r", "shake", "reset_mouse", "active_gyro" })
+            {
+                Settings[s] = GetDefaultValue(s);
+            }
 
-		public static void Init(List<KeyValuePair<string, float[]>> caliData) {
-			foreach (string s in new string[] { "ProgressiveScan", "StartInTray", "capture", "home", "sl_l", "sl_r", "sr_l", "sr_r", "shake", "reset_mouse", "active_gyro" })
-				variables[s] = GetDefaultValue(s);
+            if (File.Exists(path))
+            {
+                //TODO: maybe switch to IOptions<Settings>?
+                var settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(path));
 
-			if (File.Exists(path)) {
+                using var file = new StreamReader(path);
+                var line = string.Empty;
+                int lineNO = 0;
+                while ((line = file.ReadLine()) != null)
+                {
+                    string[] vs = line.Split();
 
-				// Reset settings file if old settings
-				if (CountLinesInFile(path) < settingsNum) {
-					File.Delete(path);
-					Init(caliData);
-					return;
-				}
+                    if (lineNO < SettingsNum)
+                    {
+                        // load in basic settings
+                        Settings[vs[0]] = vs[1];
+                    }
+                    else
+                    {
+                        // load in calibration presets
+                        caliData.Clear();
+                        for (int i = 0; i < vs.Length; i++)
+                        {
+                            string[] caliArr = vs[i].Split(',');
+                            float[] newArr = new float[6];
+                            for (int j = 1; j < caliArr.Length; j++)
+                            {
+                                newArr[j - 1] = float.Parse(caliArr[j]);
+                            }
+                            caliData.Add(new KeyValuePair<string, float[]>(
+                                caliArr[0],
+                                newArr
+                            ));
+                        }
+                    }
 
-				using (StreamReader file = new StreamReader(path)) {
-					string line = String.Empty;
-					int lineNO = 0;
-					while ((line = file.ReadLine()) != null) {
-						string[] vs = line.Split();
-						try {
-							if (lineNO < settingsNum) { // load in basic settings
-								variables[vs[0]] = vs[1];
-							} else { // load in calibration presets
-								caliData.Clear();
-								for (int i = 0; i < vs.Length; i++) {
-									string[] caliArr = vs[i].Split(',');
-									float[] newArr = new float[6];
-									for (int j = 1; j < caliArr.Length; j++) {
-										newArr[j - 1] = float.Parse(caliArr[j]);
-									}
-									caliData.Add(new KeyValuePair<string, float[]>(
-										caliArr[0],
-										newArr
-									));
-								}
-							}
-						} catch { }
-						lineNO++;
-					}
-				}
-			} else {
-				using (StreamWriter file = new StreamWriter(path)) {
-					foreach (string k in variables.Keys)
-						file.WriteLine(String.Format("{0} {1}", k, variables[k]));
-					string caliStr = "";
-					for (int i = 0; i < caliData.Count; i++) {
-						string space = " ";
-						if (i == 0) space = "";
-						caliStr += space + caliData[i].Key + "," + String.Join(",", caliData[i].Value);
-					}
-					file.WriteLine(caliStr);
-				}
-			}
-		}
+                    lineNO++;
+                }
+            }
+            else
+            {
+                using var file = new StreamWriter(path);
+                foreach (string k in Settings.Keys)
+                {
+                    file.WriteLine(string.Format("{0} {1}", k, Settings[k]));
+                }
 
-		public static int IntValue(string key) {
-			if (!variables.ContainsKey(key)) {
-				return 0;
-			}
-			return Int32.Parse(variables[key]);
-		}
+                string caliStr = "";
+                for (int i = 0; i < caliData.Count; i++)
+                {
+                    string space = " ";
+                    if (i == 0) space = "";
+                    caliStr += $"{space}{caliData[i].Key},{string.Join(",", caliData[i].Value)}";
+                }
+                file.WriteLine(caliStr);
+            }
+        }
 
-		public static string Value(string key) {
-			if (!variables.ContainsKey(key)) {
-				return "";
-			}
-			return variables[key];
-		}
+        public static int IntValue(string key)
+        {
+            if (!Settings.ContainsKey(key))
+            {
+                return 0;
+            }
 
-		public static bool SetValue(string key, string value) {
-			if (!variables.ContainsKey(key))
-				return false;
-			variables[key] = value;
-			return true;
-		}
+            return int.Parse(Settings[key]);
+        }
 
-		public static void SaveCaliData(List<KeyValuePair<string, float[]>> caliData) {
-			string[] txt = File.ReadAllLines(path);
-			if (txt.Length < settingsNum + 1) // no custom calibrations yet
-				Array.Resize(ref txt, txt.Length + 1);
+        public static string Value(string key)
+        {
+            if (!Settings.ContainsKey(key))
+            {
+                return "";
+            }
 
-			string caliStr = "";
-			for (int i = 0; i < caliData.Count; i++) {
-				string space = " ";
-				if (i == 0) space = "";
-				caliStr += space + caliData[i].Key + "," + String.Join(",", caliData[i].Value);
-			}
-            txt[settingsNum] = caliStr;
+            return Settings[key];
+        }
+
+        public static bool SetValue(string key, string value)
+        {
+            if (!Settings.ContainsKey(key))
+                return false;
+            Settings[key] = value;
+            return true;
+        }
+
+        public static void SaveCaliData(List<KeyValuePair<string, float[]>> caliData)
+        {
+            string[] txt = File.ReadAllLines(path);
+
+            // no custom calibrations yet
+            if (txt.Length < SettingsNum + 1)
+            {
+                Array.Resize(ref txt, txt.Length + 1);
+            }
+
+            var caliStr = string.Empty;
+            for (int i = 0; i < caliData.Count; i++)
+            {
+                string space = " ";
+                if (i == 0) space = string.Empty;
+                caliStr += $"{space}{caliData[i].Key},{string.Join(",", caliData[i].Value)}";
+            }
+            txt[SettingsNum] = caliStr;
             File.WriteAllLines(path, txt);
-		}
+        }
 
-		public static void Save() {
-			string[] txt = File.ReadAllLines(path);
-			int NO = 0;
-			foreach (string k in variables.Keys) {
-				txt[NO] = String.Format("{0} {1}", k, variables[k]);
-				NO++;
-			}
-			File.WriteAllLines(path, txt);
-		}
-	}
+        public static void Save()
+        {
+            string[] txt = File.ReadAllLines(path);
+            var NO = 0;
+            foreach (var k in Settings.Keys)
+            {
+                txt[NO] = string.Format("{0} {1}", k, Settings[k]);
+                NO++;
+            }
+            File.WriteAllLines(path, txt);
+        }
+    }
 }

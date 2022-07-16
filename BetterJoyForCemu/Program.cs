@@ -525,6 +525,7 @@ namespace BetterJoyForCemu {
                 }
 
                 Application.EnableVisualStyles();
+                Application.SetHighDpiMode(HighDpiMode.SystemAware);
                 Application.SetCompatibleTextRenderingDefault(false);
                 form = new MainForm();
                 Application.Run(form);

@@ -1,28 +1,23 @@
-﻿using Nefarius.ViGEm.Client.Targets;
-using Nefarius.ViGEm.Client.Targets.Xbox360;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Configuration;
 using System.Data;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Xml.Linq;
 
 namespace BetterJoyForCemu {
     public partial class MainForm : Form {
-        public bool allowCalibration = Boolean.Parse(ConfigurationManager.AppSettings["AllowCalibration"]);
+        public bool allowCalibration = bool.Parse(ConfigurationManager.AppSettings["AllowCalibration"]);
         public List<Button> con, loc;
         public bool calibrate;
         public List<KeyValuePair<string, float[]>> caliData;
         private Timer countDown;
         private int count;
         public List<int> xG, yG, zG, xA, yA, zA;
-        public bool shakeInputEnabled = Boolean.Parse(ConfigurationManager.AppSettings["EnableShakeInput"]);
+        public bool shakeInputEnabled = bool.Parse(ConfigurationManager.AppSettings["EnableShakeInput"]);
         public float shakeSesitivity = float.Parse(ConfigurationManager.AppSettings["ShakeInputSensitivity"]);
         public float shakeDelay = float.Parse(ConfigurationManager.AppSettings["ShakeInputDelay"]);
 
@@ -96,7 +91,7 @@ namespace BetterJoyForCemu {
         }
 
         private void MainForm_Load(object sender, EventArgs e) {
-            Config.Init(caliData);
+            caliData = Config.Init();
 
             Program.Start();
 
@@ -364,12 +359,12 @@ namespace BetterJoyForCemu {
                 int serIndex = this.findSer(serNum);
                 float[] Arr = new float[6] { 0, 0, 0, 0, 0, 0 };
                 if (serIndex == -1) {
-                    this.caliData.Add(new KeyValuePair<string, float[]>(
+                    caliData.Add(new KeyValuePair<string, float[]>(
                          serNum,
                          Arr
                     ));
                 } else {
-                    Arr = this.caliData[serIndex].Value;
+                    Arr = caliData[serIndex].Value;
                 }
                 Random rnd = new Random();
                 Arr[0] = (float)quickselect_median(this.xG, rnd.Next);
@@ -379,7 +374,7 @@ namespace BetterJoyForCemu {
                 Arr[4] = (float)quickselect_median(this.yA, rnd.Next);
                 Arr[5] = (float)quickselect_median(this.zA, rnd.Next) - 4010; //Joycon.cs acc_sen 16384
                 this.console.Text += "Calibration completed!!!" + "\r\n";
-                Config.SaveCaliData(this.caliData);
+                Config.SaveCaliData(caliData);
                 Program.mgr.j.First().getActiveData();
                 this.AutoCalibrate.Enabled = true;
             } else {
