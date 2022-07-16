@@ -2,8 +2,8 @@
   <PropertyGroup>
     <TargetFramework>net6.0-windows</TargetFramework>
     <OutputType>WinExe</OutputType>
-    <RootNamespace>BetterJoyForCemu</RootNamespace>
-    <AssemblyName>BetterJoyForCemu</AssemblyName>
+    <RootNamespace>EvenBetterJoy</RootNamespace>
+    <AssemblyName>EvenBetterJoy</AssemblyName>
     <IsWebBootstrapper>false</IsWebBootstrapper>
     <PublishUrl>publish\X64\</PublishUrl>
     <Install>true</Install>
