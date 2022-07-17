@@ -1,84 +1,38 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Configuration;
-using System.Net;
+﻿using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Force.Crc32;
+using EvenBetterJoy.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
-namespace EvenBetterJoy
+namespace EvenBetterJoy.Services
 {
-    class UdpServer
+    public class CommunicationService : ICommunicationService
     {
-        private Socket udpSock;
+        private const ushort MAX_PROTOCOL_VERSION = 1001;
+
+        private Socket socket;
         private uint serverId;
         private bool running;
-        private byte[] recvBuffer = new byte[1024];
+        private readonly byte[] recvBuffer;
+        private readonly Dictionary<IPEndPoint, ClientRequestTimes> clients;
 
-        IList<Joycon> controllers;
+        private readonly ILogger logger;
+        private readonly Settings settings;
 
-        public MainForm form;
-
-        public UdpServer(IList<Joycon> p)
+        public CommunicationService(
+            ILogger<CommunicationService> logger,
+            IOptions<Settings> settings)
         {
-            controllers = p;
+            this.logger = logger;
+            this.settings = settings.Value;
+
+            recvBuffer = new byte[1024];
+            clients = new Dictionary<IPEndPoint, ClientRequestTimes>();
         }
 
-        enum MessageType
-        {
-            DSUC_VersionReq = 0x100000,
-            DSUS_VersionRsp = 0x100000,
-            DSUC_ListPorts = 0x100001,
-            DSUS_PortInfo = 0x100001,
-            DSUC_PadDataReq = 0x100002,
-            DSUS_PadDataRsp = 0x100002,
-        };
-
-        private const ushort MaxProtocolVersion = 1001;
-
-        class ClientRequestTimes
-        {
-            DateTime allPads;
-            DateTime[] padIds;
-            Dictionary<PhysicalAddress, DateTime> padMacs;
-
-            public DateTime AllPadsTime { get { return allPads; } }
-            public DateTime[] PadIdsTime { get { return padIds; } }
-            public Dictionary<PhysicalAddress, DateTime> PadMacsTime { get { return padMacs; } }
-
-            public ClientRequestTimes()
-            {
-                allPads = DateTime.MinValue;
-                padIds = new DateTime[4];
-
-                for (int i = 0; i < padIds.Length; i++)
-                    padIds[i] = DateTime.MinValue;
-
-                padMacs = new Dictionary<PhysicalAddress, DateTime>();
-            }
-
-            public void RequestPadInfo(byte regFlags, byte idToReg, PhysicalAddress macToReg)
-            {
-                if (regFlags == 0)
-                    allPads = DateTime.UtcNow;
-                else
-                {
-                    if ((regFlags & 0x01) != 0) //id valid
-                    {
-                        if (idToReg < padIds.Length)
-                            padIds[idToReg] = DateTime.UtcNow;
-                    }
-                    if ((regFlags & 0x02) != 0) //mac valid
-                    {
-                        padMacs[macToReg] = DateTime.UtcNow;
-                    }
-                }
-            }
-        }
-
-        private Dictionary<IPEndPoint, ClientRequestTimes> clients = new Dictionary<IPEndPoint, ClientRequestTimes>();
-
-        private int BeginPacket(byte[] packetBuf, ushort reqProtocolVersion = MaxProtocolVersion)
+        private int BeginPacket(byte[] packetBuf, ushort reqProtocolVersion = MAX_PROTOCOL_VERSION)
         {
             int currIdx = 0;
             packetBuf[currIdx++] = (byte)'D';
@@ -92,7 +46,8 @@ namespace EvenBetterJoy
             Array.Copy(BitConverter.GetBytes((ushort)packetBuf.Length - 16), 0, packetBuf, currIdx, 2);
             currIdx += 2;
 
-            Array.Clear(packetBuf, currIdx, 4); //place for crc
+            // place for crc
+            Array.Clear(packetBuf, currIdx, 4);
             currIdx += 4;
 
             Array.Copy(BitConverter.GetBytes((uint)serverId), 0, packetBuf, currIdx, 4);
@@ -101,7 +56,7 @@ namespace EvenBetterJoy
             return currIdx;
         }
 
-        private void FinishPacket(byte[] packetBuf)
+        private static void FinishPacket(byte[] packetBuf)
         {
             Array.Clear(packetBuf, 8, 4);
 
@@ -109,14 +64,14 @@ namespace EvenBetterJoy
             Array.Copy(BitConverter.GetBytes((uint)crcCalc), 0, packetBuf, 8, 4);
         }
 
-        private void SendPacket(IPEndPoint clientEP, byte[] usefulData, ushort reqProtocolVersion = MaxProtocolVersion)
+        private void SendPacket(IPEndPoint clientEP, byte[] usefulData, ushort reqProtocolVersion = MAX_PROTOCOL_VERSION)
         {
             byte[] packetData = new byte[usefulData.Length + 16];
             int currIdx = BeginPacket(packetData, reqProtocolVersion);
             Array.Copy(usefulData, 0, packetData, currIdx, usefulData.Length);
             FinishPacket(packetData);
 
-            try { udpSock.SendTo(packetData, clientEP); } catch (Exception e) { }
+            socket.SendTo(packetData, clientEP);
         }
 
         private void ProcessIncoming(byte[] localMsg, IPEndPoint clientEP)
@@ -132,7 +87,7 @@ namespace EvenBetterJoy
                 uint protocolVer = BitConverter.ToUInt16(localMsg, currIdx);
                 currIdx += 2;
 
-                if (protocolVer > MaxProtocolVersion)
+                if (protocolVer > MAX_PROTOCOL_VERSION)
                     return;
 
                 uint packetSize = BitConverter.ToUInt16(localMsg, currIdx);
@@ -141,7 +96,8 @@ namespace EvenBetterJoy
                 if (packetSize < 0)
                     return;
 
-                packetSize += 16; //size of header
+                // size of header
+                packetSize += 16;
                 if (packetSize > localMsg.Length)
                     return;
                 else if (packetSize < localMsg.Length)
@@ -168,20 +124,20 @@ namespace EvenBetterJoy
                 uint messageType = BitConverter.ToUInt32(localMsg, currIdx);
                 currIdx += 4;
 
-                if (messageType == (uint)MessageType.DSUC_VersionReq)
+                if (messageType == (uint)ControllerMessageType.DSUC_VersionReq)
                 {
                     byte[] outputData = new byte[8];
                     int outIdx = 0;
-                    Array.Copy(BitConverter.GetBytes((uint)MessageType.DSUS_VersionRsp), 0, outputData, outIdx, 4);
+                    Array.Copy(BitConverter.GetBytes((uint)ControllerMessageType.DSUS_VersionRsp), 0, outputData, outIdx, 4);
                     outIdx += 4;
-                    Array.Copy(BitConverter.GetBytes((ushort)MaxProtocolVersion), 0, outputData, outIdx, 2);
+                    Array.Copy(BitConverter.GetBytes((ushort)MAX_PROTOCOL_VERSION), 0, outputData, outIdx, 2);
                     outIdx += 2;
                     outputData[outIdx++] = 0;
                     outputData[outIdx++] = 0;
 
                     SendPacket(clientEP, outputData, 1001);
                 }
-                else if (messageType == (uint)MessageType.DSUC_ListPorts)
+                else if (messageType == (uint)ControllerMessageType.DSUC_ListPorts)
                 {
                     // Requested information on gamepads - return MAC address
                     int numPadRequests = BitConverter.ToInt32(localMsg, currIdx);
@@ -204,7 +160,7 @@ namespace EvenBetterJoy
                         var padData = controllers[i];//controllers[currRequest];
 
                         int outIdx = 0;
-                        Array.Copy(BitConverter.GetBytes((uint)MessageType.DSUS_PortInfo), 0, outputData, outIdx, 4);
+                        Array.Copy(BitConverter.GetBytes((uint)ControllerMessageType.DSUS_PortInfo), 0, outputData, outIdx, 4);
                         outIdx += 4;
 
                         outputData[outIdx++] = (byte)padData.PadId;
@@ -238,7 +194,7 @@ namespace EvenBetterJoy
                         SendPacket(clientEP, outputData, 1001);
                     }
                 }
-                else if (messageType == (uint)MessageType.DSUC_PadDataReq)
+                else if (messageType == (uint)ControllerMessageType.DSUC_PadDataReq)
                 {
                     byte regFlags = localMsg[currIdx++];
                     byte idToReg = localMsg[currIdx++];
@@ -263,7 +219,10 @@ namespace EvenBetterJoy
                     }
                 }
             }
-            catch (Exception e) { }
+            catch (Exception e)
+            {
+                logger.LogError(e, "Unable to process income BT traffic");
+            }
         }
 
         private void ReceiveCallback(IAsyncResult iar)
@@ -280,7 +239,10 @@ namespace EvenBetterJoy
                 localMsg = new byte[msgLen];
                 Array.Copy(recvBuffer, localMsg, msgLen);
             }
-            catch (Exception e) { }
+            catch (Exception e)
+            {
+                logger.LogError(e, "Unable to receive BT traffic");
+            }
 
             //Start another receive as soon as we copied the data
             StartReceive();
@@ -299,7 +261,7 @@ namespace EvenBetterJoy
                 {
                     //Start listening for a new message.
                     EndPoint newClientEP = new IPEndPoint(IPAddress.Any, 0);
-                    udpSock.BeginReceiveFrom(recvBuffer, 0, recvBuffer.Length, SocketFlags.None, ref newClientEP, ReceiveCallback, udpSock);
+                    socket.BeginReceiveFrom(recvBuffer, 0, recvBuffer.Length, SocketFlags.None, ref newClientEP, ReceiveCallback, socket);
                 }
             }
             catch (SocketException ex)
@@ -307,7 +269,7 @@ namespace EvenBetterJoy
                 uint IOC_IN = 0x80000000;
                 uint IOC_VENDOR = 0x18000000;
                 uint SIO_UDP_CONNRESET = IOC_IN | IOC_VENDOR | 12;
-                udpSock.IOControl((int)SIO_UDP_CONNRESET, new byte[] { Convert.ToByte(false) }, null);
+                socket.IOControl((int)SIO_UDP_CONNRESET, new byte[] { Convert.ToByte(false) }, null);
 
                 StartReceive();
             }
@@ -315,30 +277,30 @@ namespace EvenBetterJoy
 
         public void Start(IPAddress ip, int port = 26760)
         {
-            if (!Boolean.Parse(ConfigurationManager.AppSettings["MotionServer"]))
+            if (!settings.MotionServer)
             {
-                form.console.AppendText("Motion server is OFF.\r\n");
+                logger.LogInformation("Motion server is OFF.");
                 return;
             }
 
             if (running)
             {
-                if (udpSock != null)
+                if (socket != null)
                 {
-                    udpSock.Close();
-                    udpSock = null;
+                    socket.Close();
+                    socket = null;
                 }
                 running = false;
             }
 
-            udpSock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-            try { udpSock.Bind(new IPEndPoint(ip, port)); }
+            socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            try { socket.Bind(new IPEndPoint(ip, port)); }
             catch (SocketException ex)
             {
-                udpSock.Close();
-                udpSock = null;
+                socket.Close();
+                socket = null;
 
-                form.console.AppendText("Could not start server. Make sure that only one instance of the program is running at a time and no other CemuHook applications are running.\r\n");
+                logger.LogError("Could not start server. Make sure that only one instance of the program is running at a time and no other CemuHook applications are running.");
                 return;
             }
 
@@ -347,17 +309,17 @@ namespace EvenBetterJoy
             serverId = BitConverter.ToUInt32(randomBuf, 0);
 
             running = true;
-            form.console.AppendText(String.Format("Starting server on {0}:{1}\r\n", ip.ToString(), port));
+            logger.LogInformation($"Starting server on {ip}:{port}");
             StartReceive();
         }
 
         public void Stop()
         {
             running = false;
-            if (udpSock != null)
+            if (socket != null)
             {
-                udpSock.Close();
-                udpSock = null;
+                socket.Close();
+                socket = null;
             }
         }
 
@@ -441,7 +403,7 @@ namespace EvenBetterJoy
                 else
                 {
                     outIdx += 12;
-                    Console.WriteLine("No accelerometer reported.");
+                    logger.LogWarning("No accelerometer reported.");
                 }
             }
 
@@ -460,7 +422,7 @@ namespace EvenBetterJoy
                 else
                 {
                     outIdx += 12;
-                    Console.WriteLine("No gyroscope reported.");
+                    logger.LogWarning("No gyroscope reported.");
                 }
             }
 
@@ -533,7 +495,7 @@ namespace EvenBetterJoy
 
             byte[] outputData = new byte[100];
             int outIdx = BeginPacket(outputData, 1001);
-            Array.Copy(BitConverter.GetBytes((uint)MessageType.DSUS_PadDataRsp), 0, outputData, outIdx, 4);
+            Array.Copy(BitConverter.GetBytes((uint)ControllerMessageType.DSUS_PadDataRsp), 0, outputData, outIdx, 4);
             outIdx += 4;
 
             outputData[outIdx++] = (byte)hidReport.PadId;
@@ -563,7 +525,7 @@ namespace EvenBetterJoy
 
             foreach (var cl in clientsList)
             {
-                try { udpSock.SendTo(outputData, cl); } catch (SocketException ex) { }
+                try { socket.SendTo(outputData, cl); } catch (SocketException ex) { }
             }
             clientsList.Clear();
             clientsList = null;

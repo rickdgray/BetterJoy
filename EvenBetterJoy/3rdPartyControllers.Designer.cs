@@ -74,7 +74,7 @@
             this.btn_add.TabIndex = 2;
             this.btn_add.Text = "->";
             this.btn_add.UseVisualStyleBackColor = true;
-            this.btn_add.Click += new System.EventHandler(this.btn_add_Click);
+            this.btn_add.Click += new System.EventHandler(this.Btn_add_Click);
             // 
             // btn_remove
             // 

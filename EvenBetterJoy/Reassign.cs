@@ -1,26 +1,32 @@
 ﻿using System;
 using System.Windows.Forms;
+using WindowsInput.Events.Sources;
+using EvenBetterJoy.Models;
+using EvenBetterJoy.Services;
 
 namespace EvenBetterJoy
 {
     public partial class Reassign : Form
     {
-        private WindowsInput.Events.Sources.IKeyboardEventSource keyboard;
-        private WindowsInput.Events.Sources.IMouseEventSource mouse;
+        private IKeyboardEventSource keyboard;
+        private IMouseEventSource mouse;
 
         ContextMenuStrip menu_joy_buttons = new ContextMenuStrip();
 
         private Control curAssignment;
+        readonly ISettingsService settingsService;
 
-        public Reassign()
+        public Reassign(ISettingsService settingsService)
         {
+            this.settingsService = settingsService;
+
             InitializeComponent();
 
-            foreach (int i in Enum.GetValues(typeof(Joycon.Button)))
+            foreach (int i in Enum.GetValues(typeof(ControllerButton)))
             {
-                ToolStripMenuItem temp = new ToolStripMenuItem(Enum.GetName(typeof(Joycon.Button), i));
-                temp.Tag = i;
-                menu_joy_buttons.Items.Add(temp);
+                var item = new ToolStripMenuItem(Enum.GetName(typeof(ControllerButton), i));
+                item.Tag = i;
+                menu_joy_buttons.Items.Add(item);
             }
 
             menu_joy_buttons.ItemClicked += Menu_joy_buttons_ItemClicked;
@@ -106,7 +112,7 @@ namespace EvenBetterJoy
         {
             if (InvokeRequired)
             {
-                this.Invoke(new Action<Control>(AsyncPrettyName), new object[] { c });
+                Invoke(new Action<Control>(AsyncPrettyName), new object[] { c });
                 return;
             }
             GetPrettyName(c);
@@ -124,15 +130,15 @@ namespace EvenBetterJoy
                         c.Text = "";
                     break;
                 default:
-                    Type t = val.StartsWith("joy_") ? typeof(Joycon.Button) : (val.StartsWith("key_") ? typeof(WindowsInput.Events.KeyCode) : typeof(WindowsInput.Events.ButtonCode));
-                    c.Text = Enum.GetName(t, Int32.Parse(val.Substring(4)));
+                    Type t = val.StartsWith("joy_") ? typeof(ControllerButton) : (val.StartsWith("key_") ? typeof(WindowsInput.Events.KeyCode) : typeof(WindowsInput.Events.ButtonCode));
+                    c.Text = Enum.GetName(t, int.Parse(val.Substring(4)));
                     break;
             }
         }
 
         private void btn_apply_Click(object sender, EventArgs e)
         {
-            Config.Save();
+            settingsService.Save();
         }
 
         private void btn_close_Click(object sender, EventArgs e)

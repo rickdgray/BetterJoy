@@ -79,9 +79,9 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="Icons\jc_left.png" />
-    <Resource Include="Icons\jc_right.png" />
-    <Resource Include="Icons\pro.png" />
+    <Resource Include="Assets\jc_left.png" />
+    <Resource Include="Assets\jc_right.png" />
+    <Resource Include="Assets\pro.png" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.6.1">
@@ -107,10 +107,13 @@
   <ItemGroup>
     <PackageReference Include="Crc32.NET" Version="1.2.0" />
     <PackageReference Include="Nefarius.ViGEm.Client" Version="1.17.183" />
-    <PackageReference Include="System.Text.Json" Version="6.0.5" />
     <PackageReference Include="WindowsInput" Version="6.4.0" />
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EvenBetterJoy.Domain\EvenBetterJoy.Domain.csproj" />
+    <ProjectReference Include="..\EvenBetterJoy.Models\EvenBetterJoy.Models.csproj" />
   </ItemGroup>
 </Project>

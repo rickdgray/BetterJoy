@@ -1,80 +1,33 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-
-using static EvenBetterJoy.HidApi;
+using EvenBetterJoy.Domain;
+using EvenBetterJoy.Models;
+using EvenBetterJoy.Services;
 
 namespace EvenBetterJoy
 {
     public partial class _3rdPartyControllers : Form
     {
-        public class SController
+        readonly string path;
+
+        readonly IDeviceService deviceService;
+
+        public _3rdPartyControllers(IDeviceService deviceService)
         {
-            public String name;
-            public ushort product_id;
-            public ushort vendor_id;
-            public string serial_number;
-            public byte type; // 1 is pro, 2 is left joy, 3 is right joy
-
-            public SController(String name, ushort vendor_id, ushort product_id, byte type, string serial_number)
-            {
-                this.product_id = product_id; this.vendor_id = vendor_id; this.type = type;
-                this.serial_number = serial_number;
-                this.name = name;
-            }
-
-            public override bool Equals(object obj)
-            {
-                //Check for null and compare run-time types.
-                if ((obj == null) || !this.GetType().Equals(obj.GetType()))
-                {
-                    return false;
-                }
-                else
-                {
-                    SController s = (SController)obj;
-                    return (s.product_id == product_id) && (s.vendor_id == vendor_id) && (s.serial_number == serial_number);
-                }
-            }
-
-            public override int GetHashCode()
-            {
-                return Tuple.Create(product_id, vendor_id, serial_number).GetHashCode();
-            }
-
-            public override string ToString()
-            {
-                return name ?? $"Unidentified Device ({this.product_id})";
-            }
-
-            public string Serialise()
-            {
-                return String.Format("{0}|{1}|{2}|{3}|{4}", name, vendor_id, product_id, type, serial_number);
-            }
+            this.deviceService = deviceService;
+            //TODO: Ioptions inject path
+            path = $"{Path.GetDirectoryName(AppContext.BaseDirectory)}\\3rdPartyControllers";
         }
 
-        static readonly string path;
-
-        static _3rdPartyControllers()
-        {
-            path = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)
-                   + "\\3rdPartyControllers";
-        }
-
+        //TODO: why are there two constructors?
         public _3rdPartyControllers()
         {
             InitializeComponent();
             list_allControllers.HorizontalScrollbar = true; list_customControllers.HorizontalScrollbar = true;
 
-            chooseType.Items.AddRange(new String[] { "Pro Controller", "Left Joycon", "Right Joycon" });
+            chooseType.Items.AddRange(new string[] { "Pro Controller", "Left Joycon", "Right Joycon" });
 
             chooseType.FormattingEnabled = true;
             group_props.Controls.Add(chooseType);
@@ -82,20 +35,18 @@ namespace EvenBetterJoy
 
             if (File.Exists(path))
             {
-                using (StreamReader file = new StreamReader(path))
+                using var file = new StreamReader(path);
+                var line = string.Empty;
+                while ((line = file.ReadLine()) != null && (line != string.Empty))
                 {
-                    string line = String.Empty;
-                    while ((line = file.ReadLine()) != null && (line != String.Empty))
+                    string[] split = line.Split('|');
+                    //won't break existing config file
+                    string serial_number = "";
+                    if (split.Length > 4)
                     {
-                        String[] split = line.Split('|');
-                        //won't break existing config file
-                        String serial_number = "";
-                        if (split.Length > 4)
-                        {
-                            serial_number = split[4];
-                        }
-                        list_customControllers.Items.Add(new SController(split[0], ushort.Parse(split[1]), ushort.Parse(split[2]), byte.Parse(split[3]), serial_number));
+                        serial_number = split[4];
                     }
+                    list_customControllers.Items.Add(new SController(split[0], ushort.Parse(split[1]), ushort.Parse(split[2]), byte.Parse(split[3]), serial_number));
                 }
             }
 
@@ -112,7 +63,7 @@ namespace EvenBetterJoy
             }
         }
 
-        private bool ContainsText(ListBox a, String manu)
+        private static bool ContainsText(ListBox a, string manu)
         {
             foreach (SController v in a.Items)
             {
@@ -129,13 +80,14 @@ namespace EvenBetterJoy
         private void RefreshControllerList()
         {
             list_allControllers.Items.Clear();
-            IntPtr ptr = HidApi.HidEnumerate(0x0, 0x0);
+            IntPtr ptr = deviceService.EnumerateDevice(0x0, 0x0);
             IntPtr top_ptr = ptr;
 
-            HidDeviceInfo enumerate; // Add device to list
+            // Add device to list
+            DeviceInfo enumerate;
             while (ptr != IntPtr.Zero)
             {
-                enumerate = (HidDeviceInfo)Marshal.PtrToStructure(ptr, typeof(HidDeviceInfo));
+                enumerate = (DeviceInfo)Marshal.PtrToStructure(ptr, typeof(DeviceInfo));
 
                 if (enumerate.serial_number == null)
                 {
@@ -144,7 +96,7 @@ namespace EvenBetterJoy
                 }
 
                 // TODO: try checking against interface number instead
-                String name = enumerate.product_string + '(' + enumerate.vendor_id + '-' + enumerate.product_id + '-' + enumerate.serial_number + ')';
+                string name = enumerate.product_string + '(' + enumerate.vendor_id + '-' + enumerate.product_id + '-' + enumerate.serial_number + ')';
                 if (!ContainsText(list_customControllers, name) && !ContainsText(list_allControllers, name))
                 {
                     list_allControllers.Items.Add(new SController(name, enumerate.vendor_id, enumerate.product_id, 0, enumerate.serial_number));
@@ -154,7 +106,7 @@ namespace EvenBetterJoy
 
                 ptr = enumerate.next;
             }
-            HidApi.HidFreeEnumeration(top_ptr);
+            deviceService.FreeDeviceList(top_ptr);
         }
 
         private void btn_add_Click(object sender, EventArgs e)
@@ -181,7 +133,7 @@ namespace EvenBetterJoy
 
         private void btn_apply_Click(object sender, EventArgs e)
         {
-            String sc = "";
+            string sc = "";
             foreach (SController v in list_customControllers.Items)
             {
                 sc += v.Serialise() + "\r\n";
