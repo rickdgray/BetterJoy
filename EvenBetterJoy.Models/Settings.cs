@@ -3,6 +3,7 @@
     public class Settings
     {
         public bool ProgressiveScan { get; set; } = true;
+        public bool UseHidg { get; set; };
         public bool StartInTray { get; set; }
         //TODO: all these buttons should be enums
         public string Capture { get; set; } = $"key_{WindowsInput.Events.KeyCode.PrintScreen}";
