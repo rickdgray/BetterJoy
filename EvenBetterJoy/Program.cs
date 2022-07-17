@@ -10,8 +10,7 @@ using System.Threading;
 using System.Windows.Forms;
 using Nefarius.ViGEm.Client;
 using WindowsInput.Events.Sources;
-
-using static EvenBetterJoy._3rdPartyControllers;
+using EvenBetterJoy.Domain;
 
 namespace EvenBetterJoy
 {

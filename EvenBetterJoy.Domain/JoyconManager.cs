@@ -25,9 +25,9 @@ namespace EvenBetterJoy.Domain
 
         System.Timers.Timer controllerCheck;
 
-        IHidService hidService;
+        IDeviceService hidService;
 
-        public JoyconManager(IHidService hidService)
+        public JoyconManager(IDeviceService hidService)
         {
             this.hidService = hidService;
         }
@@ -121,12 +121,12 @@ namespace EvenBetterJoy.Domain
             IntPtr ptr = HidEnumerate(0x0, 0x0);
             IntPtr top_ptr = ptr;
 
-            HidDeviceInfo enumerate; // Add device to list
+            DeviceInfo enumerate; // Add device to list
             bool foundNew = false;
             while (ptr != IntPtr.Zero)
             {
                 SController thirdParty = null;
-                enumerate = (HidDeviceInfo)Marshal.PtrToStructure(ptr, typeof(HidDeviceInfo));
+                enumerate = (DeviceInfo)Marshal.PtrToStructure(ptr, typeof(DeviceInfo));
 
                 if (enumerate.serial_number == null)
                 {

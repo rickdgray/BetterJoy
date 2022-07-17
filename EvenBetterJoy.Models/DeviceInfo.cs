@@ -2,7 +2,7 @@
 
 namespace EvenBetterJoy.Models
 {
-    public struct HidDeviceInfo
+    public struct DeviceInfo
     {
         [MarshalAs(UnmanagedType.LPStr)]
         public string path;

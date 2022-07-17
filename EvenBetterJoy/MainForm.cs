@@ -7,6 +7,8 @@ using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using EvenBetterJoy.Domain;
+using EvenBetterJoy.Services;
 
 namespace EvenBetterJoy
 {
@@ -23,15 +25,12 @@ namespace EvenBetterJoy
         public float shakeSesitivity = float.Parse(ConfigurationManager.AppSettings["ShakeInputSensitivity"]);
         public float shakeDelay = float.Parse(ConfigurationManager.AppSettings["ShakeInputDelay"]);
 
-        public enum NonOriginalController : int
-        {
-            Disabled = 0,
-            DefaultCalibration = 1,
-            ControllerCalibration = 2,
-        }
+        ISettingsService settingsService;
 
-        public MainForm()
+        public MainForm(ISettingsService settingsService)
         {
+            this.settingsService = settingsService;
+
             xG = new List<int>(); yG = new List<int>(); zG = new List<int>();
             xA = new List<int>(); yA = new List<int>(); zA = new List<int>();
             caliData = new List<KeyValuePair<string, float[]>> {
@@ -47,14 +46,14 @@ namespace EvenBetterJoy
             loc = new List<Button> { loc1, loc2, loc3, loc4 };
 
             //list all options
-            string[] myConfigs = ConfigurationManager.AppSettings.AllKeys;
-            Size childSize = new Size(150, 20);
-            for (int i = 0; i != myConfigs.Length; i++)
+            var settings = ConfigurationManager.AppSettings.AllKeys;
+            var childSize = new Size(150, 20);
+            for (int i = 0; i != settings.Length; i++)
             {
                 settingsTable.RowCount++;
-                settingsTable.Controls.Add(new Label() { Text = myConfigs[i], TextAlign = ContentAlignment.BottomLeft, AutoEllipsis = true, Size = childSize }, 0, i);
+                settingsTable.Controls.Add(new Label() { Text = settings[i], TextAlign = ContentAlignment.BottomLeft, AutoEllipsis = true, Size = childSize }, 0, i);
 
-                var value = ConfigurationManager.AppSettings[myConfigs[i]];
+                var value = ConfigurationManager.AppSettings[settings[i]];
                 Control childControl;
                 if (value == "true" || value == "false")
                 {
@@ -72,27 +71,27 @@ namespace EvenBetterJoy
 
         private void HideToTray()
         {
-            this.WindowState = FormWindowState.Minimized;
+            WindowState = FormWindowState.Minimized;
             notifyIcon.Visible = true;
             notifyIcon.BalloonTipText = "Double click the tray icon to maximise!";
             notifyIcon.ShowBalloonTip(0);
-            this.ShowInTaskbar = false;
-            this.Hide();
+            ShowInTaskbar = false;
+            Hide();
         }
 
         private void ShowFromTray()
         {
-            this.Show();
-            this.WindowState = FormWindowState.Normal;
-            this.ShowInTaskbar = true;
-            this.FormBorderStyle = FormBorderStyle.FixedSingle;
-            this.Icon = Properties.Resources.betterjoyforcemu_icon;
+            Show();
+            WindowState = FormWindowState.Normal;
+            ShowInTaskbar = true;
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+            Icon = Properties.Resources.betterjoyforcemu_icon;
             notifyIcon.Visible = false;
         }
 
         private void MainForm_Resize(object sender, EventArgs e)
         {
-            if (this.WindowState == FormWindowState.Minimized)
+            if (WindowState == FormWindowState.Minimized)
             {
                 HideToTray();
             }
@@ -105,14 +104,12 @@ namespace EvenBetterJoy
 
         private void MainForm_Load(object sender, EventArgs e)
         {
-            caliData = Config.Load();
-
             Program.Start();
 
-            passiveScanBox.Checked = Config.IntValue("ProgressiveScan") == 1;
-            startInTrayBox.Checked = Config.IntValue("StartInTray") == 1;
+            passiveScanBox.Checked = settingsService.Settings.ProgressiveScan;
+            startInTrayBox.Checked = settingsService.Settings.StartInTray;
 
-            if (Config.IntValue("StartInTray") == 1)
+            if (startInTrayBox.Checked)
             {
                 HideToTray();
             }
@@ -133,14 +130,11 @@ namespace EvenBetterJoy
         }
 
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
-        { // this does not work, for some reason. Fix before release
-            try
-            {
-                Program.Stop();
-                Close();
-                Environment.Exit(0);
-            }
-            catch { }
+        {
+            // this does not work, for some reason. Fix before release
+            Program.Stop();
+            Close();
+            Environment.Exit(0);
         }
 
         private void linkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
@@ -151,23 +145,24 @@ namespace EvenBetterJoy
 
         private void passiveScanBox_CheckedChanged(object sender, EventArgs e)
         {
-            Config.SetValue("ProgressiveScan", passiveScanBox.Checked ? "1" : "0");
-            Config.Save();
+            settingsService.Settings.ProgressiveScan = passiveScanBox.Checked;
+            settingsService.Save();
         }
 
         public void AppendTextBox(string value)
-        { // https://stackoverflow.com/questions/519233/writing-to-a-textbox-from-another-thread
+        {
+            // https://stackoverflow.com/questions/519233/writing-to-a-textbox-from-another-thread
             if (InvokeRequired)
             {
-                this.Invoke(new Action<string>(AppendTextBox), new object[] { value });
+                Invoke(new Action<string>(AppendTextBox), new object[] { value });
                 return;
             }
             console.AppendText(value);
         }
 
-        bool toRumble = Boolean.Parse(ConfigurationManager.AppSettings["EnableRumble"]);
-        bool showAsXInput = Boolean.Parse(ConfigurationManager.AppSettings["ShowAsXInput"]);
-        bool showAsDS4 = Boolean.Parse(ConfigurationManager.AppSettings["ShowAsDS4"]);
+        bool toRumble = bool.Parse(ConfigurationManager.AppSettings["EnableRumble"]);
+        bool showAsXInput = bool.Parse(ConfigurationManager.AppSettings["ShowAsXInput"]);
+        bool showAsDS4 = bool.Parse(ConfigurationManager.AppSettings["ShowAsDS4"]);
 
         public async void locBtnClickAsync(object sender, EventArgs e)
         {
@@ -187,7 +182,7 @@ namespace EvenBetterJoy
             }
         }
 
-        bool doNotRejoin = Boolean.Parse(ConfigurationManager.AppSettings["DoNotRejoinJoycons"]);
+        bool doNotRejoin = bool.Parse(ConfigurationManager.AppSettings["DoNotRejoinJoycons"]);
 
         public void conBtnClick(object sender, EventArgs e)
         {
@@ -262,13 +257,13 @@ namespace EvenBetterJoy
 
         private void startInTrayBox_CheckedChanged(object sender, EventArgs e)
         {
-            Config.SetValue("StartInTray", startInTrayBox.Checked ? "1" : "0");
-            Config.Save();
+            settingsService.Settings.StartInTray = startInTrayBox.Checked;
+            settingsService.Save();
         }
 
         private void btn_open3rdP_Click(object sender, EventArgs e)
         {
-            _3rdPartyControllers partyForm = new _3rdPartyControllers();
+            var partyForm = new _3rdPartyControllers();
             partyForm.ShowDialog();
         }
 
@@ -368,25 +363,27 @@ namespace EvenBetterJoy
             catch (ConfigurationErrorsException)
             {
                 AppendTextBox("Error writing app settings\r\n");
-                Trace.WriteLine(String.Format("rw {0}, column {1}, {2}, {3}", coord.Row, coord.Column, sender.GetType(), KeyCtl));
+                Trace.WriteLine(string.Format("rw {0}, column {1}, {2}, {3}", coord.Row, coord.Column, sender.GetType(), KeyCtl));
             }
         }
         private void StartCalibrate(object sender, EventArgs e)
         {
-            if (Program.mgr.j.Count == 0)
+            if (Program.mgr.j.IsEmpty)
             {
-                this.console.Text = "Please connect a single pro controller.";
+                console.Text = "Please connect a single pro controller.";
                 return;
             }
+            
             if (Program.mgr.j.Count > 1)
             {
-                this.console.Text = "Please calibrate one controller at a time (disconnect others).";
+                console.Text = "Please calibrate one controller at a time (disconnect others).";
                 return;
             }
-            this.AutoCalibrate.Enabled = false;
+            
+            AutoCalibrate.Enabled = false;
             countDown = new Timer();
-            this.count = 4;
-            this.CountDown(null, null);
+            count = 4;
+            CountDown();
             countDown.Tick += new EventHandler(CountDown);
             countDown.Interval = 1000;
             countDown.Enabled = true;
@@ -394,11 +391,11 @@ namespace EvenBetterJoy
 
         private void StartGetData()
         {
-            this.xG.Clear(); this.yG.Clear(); this.zG.Clear();
-            this.xA.Clear(); this.yA.Clear(); this.zA.Clear();
+            xG.Clear(); yG.Clear(); zG.Clear();
+            xA.Clear(); yA.Clear(); zA.Clear();
             countDown = new Timer();
-            this.count = 3;
-            this.calibrate = true;
+            count = 3;
+            calibrate = true;
             countDown.Tick += new EventHandler(CalcData);
             countDown.Interval = 1000;
             countDown.Enabled = true;
@@ -406,33 +403,32 @@ namespace EvenBetterJoy
 
         private void btn_reassign_open_Click(object sender, EventArgs e)
         {
-            Reassign mapForm = new Reassign();
+            var mapForm = new Reassign();
             mapForm.ShowDialog();
         }
 
-        private void CountDown(object sender, EventArgs e)
+        private void CountDown(object sender = null, EventArgs e = null)
         {
-            if (this.count == 0)
+            if (count == 0)
             {
-                this.console.Text = "Calibrating...";
+                console.Text = "Calibrating...";
                 countDown.Stop();
-                this.StartGetData();
+                StartGetData();
             }
             else
             {
-                this.console.Text = "Plese keep the controller flat." + "\r\n";
-                this.console.Text += "Calibration will start in " + this.count + " seconds.";
-                this.count--;
+                console.Text = $"Plese keep the controller flat.\r\nCalibration will start in {this.count} seconds.";
+                count--;
             }
         }
         private void CalcData(object sender, EventArgs e)
         {
-            if (this.count == 0)
+            if (count == 0)
             {
                 countDown.Stop();
-                this.calibrate = false;
-                string serNum = Program.mgr.j.First().serial_number;
-                int serIndex = this.findSer(serNum);
+                calibrate = false;
+                var serNum = Program.mgr.j.First().serial_number;
+                var serIndex = findSer(serNum);
                 float[] Arr = new float[6] { 0, 0, 0, 0, 0, 0 };
                 if (serIndex == -1)
                 {
@@ -445,30 +441,33 @@ namespace EvenBetterJoy
                 {
                     Arr = caliData[serIndex].Value;
                 }
-                Random rnd = new Random();
-                Arr[0] = (float)quickselect_median(this.xG, rnd.Next);
-                Arr[1] = (float)quickselect_median(this.yG, rnd.Next);
-                Arr[2] = (float)quickselect_median(this.zG, rnd.Next);
-                Arr[3] = (float)quickselect_median(this.xA, rnd.Next);
-                Arr[4] = (float)quickselect_median(this.yA, rnd.Next);
-                Arr[5] = (float)quickselect_median(this.zA, rnd.Next) - 4010; //Joycon.cs acc_sen 16384
-                this.console.Text += "Calibration completed!!!" + "\r\n";
-                Config.SaveCalibrationData(caliData);
+                var rnd = new Random();
+                Arr[0] = (float)quickselect_median(xG, rnd.Next);
+                Arr[1] = (float)quickselect_median(yG, rnd.Next);
+                Arr[2] = (float)quickselect_median(zG, rnd.Next);
+                Arr[3] = (float)quickselect_median(xA, rnd.Next);
+                Arr[4] = (float)quickselect_median(yA, rnd.Next);
+                Arr[5] = (float)quickselect_median(zA, rnd.Next) - 4010; //Joycon.cs acc_sen 16384
+                console.Text += "Calibration completed!\r\n";
+                settingsService.Settings.CalibrationData = caliData;
+                settingsService.Save();
                 Program.mgr.j.First().getActiveData();
-                this.AutoCalibrate.Enabled = true;
+                AutoCalibrate.Enabled = true;
             }
             else
             {
-                this.count--;
+                count--;
             }
 
         }
+
+        //TODO: this algo is probably built in to the C# library
         private double quickselect_median(List<int> l, Func<int, int> pivot_fn)
         {
-            int ll = l.Count;
+            var ll = l.Count;
             if (ll % 2 == 1)
             {
-                return this.quickselect(l, ll / 2, pivot_fn);
+                return quickselect(l, ll / 2, pivot_fn);
             }
             else
             {
@@ -502,21 +501,21 @@ namespace EvenBetterJoy
 
         public float[] activeCaliData(string serNum)
         {
-            for (int i = 0; i < this.caliData.Count; i++)
+            for (int i = 0; i < caliData.Count; i++)
             {
-                if (this.caliData[i].Key == serNum)
+                if (caliData[i].Key == serNum)
                 {
-                    return this.caliData[i].Value;
+                    return caliData[i].Value;
                 }
             }
-            return this.caliData[0].Value;
+            return caliData[0].Value;
         }
 
         private int findSer(string serNum)
         {
-            for (int i = 0; i < this.caliData.Count; i++)
+            for (int i = 0; i < caliData.Count; i++)
             {
-                if (this.caliData[i].Key == serNum)
+                if (caliData[i].Key == serNum)
                 {
                     return i;
                 }

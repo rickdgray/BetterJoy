@@ -2,11 +2,11 @@
 
 namespace EvenBetterJoy.Services
 {
-    public class HidService: IHidService
+    public class DeviceService: IDeviceService
     {
         const string DLL = "hidapi.dll";
 
-        public HidService()
+        public DeviceService()
         {
             if (hid_init() != 0)
             {
@@ -22,37 +22,37 @@ namespace EvenBetterJoy.Services
             }
         }
 
-        public static IntPtr EnumerateDevice(ushort vendorId, ushort productId)
+        public IntPtr EnumerateDevice(ushort vendorId, ushort productId)
         {
             return hid_enumerate(vendorId, productId);
         }
 
-        public static void FreeDeviceList(IntPtr deviceList)
+        public void FreeDeviceList(IntPtr deviceList)
         {
             hid_free_enumeration(deviceList);
         }
 
-        public static IntPtr OpenDevice(string device)
+        public IntPtr OpenDevice(string device)
         {
             return hid_open_path(device);
         }
 
-        public static void CloseDevice(IntPtr device)
+        public void CloseDevice(IntPtr device)
         {
             hid_close(device);
         }
 
-        public static int Read(IntPtr device, byte[] data, UIntPtr length, int milliseconds)
+        public int Read(IntPtr device, byte[] data, UIntPtr length, int milliseconds)
         {
             return hid_read_timeout(device, data, length, milliseconds);
         }
 
-        public static int Write(IntPtr device, byte[] data, UIntPtr length)
+        public int Write(IntPtr device, byte[] data, UIntPtr length)
         {
             return hid_write(device, data, length);
         }
 
-        public static int SetDeviceNonblocking(IntPtr device, int nonblocking)
+        public int SetDeviceNonblocking(IntPtr device, int nonblocking)
         {
             return hid_set_nonblocking(device, nonblocking);
         }
