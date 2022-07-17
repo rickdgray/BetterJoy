@@ -1,6 +1,6 @@
 ﻿using System.Net.NetworkInformation;
 
-namespace EvenBetterJoy.Domain
+namespace EvenBetterJoy.Models
 {
     public class ClientRequestTimes
     {

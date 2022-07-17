@@ -1,6 +1,6 @@
 ﻿namespace EvenBetterJoy.Models
 {
-    enum ControllerMessageType
+    public enum ControllerMessageType
     {
         DSUC_VersionReq = 0x100000,
         DSUS_VersionRsp = 0x100000,

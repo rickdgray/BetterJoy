@@ -10,7 +10,7 @@ namespace EvenBetterJoy.Terminal
     {
         static async Task Main(string[] args)
         {
-            //TODO: arg parser
+            //TODO: arg parser and maybe a cool ascii logo
             
             await Host.CreateDefaultBuilder(args)
                 .UseContentRoot(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location))
@@ -20,10 +20,14 @@ namespace EvenBetterJoy.Terminal
                 })
                 .ConfigureServices((context, services) =>
                 {
+                    //TODO: get off singletons after setting up DI
                     services
                         .AddHostedService<ApplicationHostedService>()
                         .AddTransient<IEvenBetterJoyApplication, EvenBetterJoyApplication>()
-                        .AddTransient<ISettingsService, SettingsService>();
+                        .AddSingleton<ICommunicationService, CommunicationService>()
+                        .AddSingleton<IDeviceService, DeviceService>()
+                        .AddSingleton<IGyroService, GyroService>()
+                        .AddSingleton<ISettingsService, SettingsService>();
 
                     services
                         .AddOptions<Settings>()

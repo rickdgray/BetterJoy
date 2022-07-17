@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using EvenBetterJoy.Models;
 
 namespace EvenBetterJoy.Terminal
@@ -19,11 +20,14 @@ namespace EvenBetterJoy.Terminal
         private IKeyboardEventSource keyboard;
         private IMouseEventSource mouse;
 
-        Settings settings;
+        private readonly ILogger logger;
+        private readonly Settings settings;
 
         public EvenBetterJoyApplication(
+            ILogger<EvenBetterJoyApplication> logger,
             IOptions<Settings> settings)
         {
+            this.logger = logger;
             this.settings = settings.Value;
         }
 
@@ -33,20 +37,20 @@ namespace EvenBetterJoy.Terminal
 
             if (settings.UseHidg)
             {
-                Console.WriteLine("HidGuardian is enabled.");
+                logger.LogInformation("HidGuardian is enabled.");
                 try
                 {
                     var HidCerberusService = new ServiceController("HidCerberus Service");
                     if (HidCerberusService.Status == ServiceControllerStatus.Stopped)
                     {
-                        Console.WriteLine("HidGuardian was stopped. Starting...");
+                        logger.LogWarning("HidGuardian was stopped. Starting...");
                         HidCerberusService.Start();
                     }
                 }
                 catch
                 {
-                    Console.WriteLine("Unable to start HidGuardian - everything should work fine without it, but if you need it, install it properly as admin.");
-                    useHIDG = false;
+                    logger.LogError("Unable to start HidGuardian - everything should work fine without it, but if you need it, install it properly as admin.");
+                    settings.UseHidg = false;
                 }
 
                 HttpWebResponse response;
@@ -59,8 +63,8 @@ namespace EvenBetterJoy.Terminal
                     }
                     catch
                     {
-                        Console.WriteLine("Unable to purge whitelist.");
-                        useHIDG = false;
+                        logger.LogError("Unable to purge whitelist.");
+                        settings.UseHidg = false;
                     }
                 }
 
@@ -71,8 +75,8 @@ namespace EvenBetterJoy.Terminal
                 }
                 catch
                 {
-                    Console.WriteLine("Unable to add program to whitelist.");
-                    useHIDG = false;
+                    logger.LogError("Unable to add program to whitelist.");
+                    settings.UseHidg = false;
                 }
             }
 
@@ -85,7 +89,7 @@ namespace EvenBetterJoy.Terminal
                 }
                 catch
                 {
-                    Console.WriteLine("Could not start VigemBus. Make sure drivers are installed correctly.");
+                    logger.LogError("Could not start VigemBus. Make sure drivers are installed correctly.");
                 }
             }
 
@@ -114,12 +118,12 @@ namespace EvenBetterJoy.Terminal
 
             server.Start(IPAddress.Parse(ConfigurationManager.AppSettings["IP"]), int.Parse(ConfigurationManager.AppSettings["Port"]));
 
-            Console.WriteLine("All systems go.");
+            logger.LogInformation("All systems go.");
         }
 
         public void Stop()
         {
-            if (useHIDG)
+            if (settings.UseHidg)
             {
                 try
                 {
@@ -127,11 +131,11 @@ namespace EvenBetterJoy.Terminal
                 }
                 catch
                 {
-                    Console.WriteLine("Unable to remove program from whitelist.");
+                    logger.LogError("Unable to remove program from whitelist.");
                 }
             }
 
-            if (bool.Parse(ConfigurationManager.AppSettings["PurgeAffectedDevices"]) && useHIDG)
+            if (bool.Parse(ConfigurationManager.AppSettings["PurgeAffectedDevices"]) && settings.UseHidg)
             {
                 try
                 {
