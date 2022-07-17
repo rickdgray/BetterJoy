@@ -1,8 +1,7 @@
-﻿using EvenBetterJoy.Models;
-using Nefarius.ViGEm.Client.Targets;
+﻿using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 
-namespace EvenBetterJoy.Controller
+namespace EvenBetterJoy.Models
 {
     public class OutputControllerXbox360
     {

@@ -253,6 +253,7 @@ namespace EvenBetterJoy.Services
                 ProcessIncoming(localMsg, (IPEndPoint)clientEP);
             }
         }
+        
         private void StartReceive()
         {
             try
@@ -275,8 +276,11 @@ namespace EvenBetterJoy.Services
             }
         }
 
-        public void Start(IPAddress ip, int port = 26760)
+        public void Start()
         {
+            var ip = settings.IpAddress;
+            var port = settings.Port;
+
             if (!settings.MotionServer)
             {
                 logger.LogInformation("Motion server is OFF.");

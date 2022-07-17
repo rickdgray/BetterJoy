@@ -44,8 +44,6 @@ namespace EvenBetterJoy.Domain
 
         public bool send = true;
         
-        public DebugType debug_type = (DebugType)int.Parse(ConfigurationManager.AppSettings["DebugType"]);
-        //public DebugType debug_type = DebugType.NONE; //Keep this for manual debugging during development.
         public bool isLeft;
         
         public ControllerState state;
@@ -106,98 +104,6 @@ namespace EvenBetterJoy.Domain
         private float filterweight;
         private const uint report_len = 49;
 
-        private struct Rumble
-        {
-            public Queue<float[]> queue;
-
-            public void set_vals(float low_freq, float high_freq, float amplitude)
-            {
-                float[] rumbleQueue = new float[] { low_freq, high_freq, amplitude };
-                // Keep a queue of 15 items, discard oldest item if queue is full.
-                if (queue.Count > 15)
-                {
-                    queue.Dequeue();
-                }
-                queue.Enqueue(rumbleQueue);
-            }
-            public Rumble(float[] rumble_info)
-            {
-                queue = new Queue<float[]>();
-                queue.Enqueue(rumble_info);
-            }
-            private float clamp(float x, float min, float max)
-            {
-                if (x < min) return min;
-                if (x > max) return max;
-                return x;
-            }
-
-            private byte EncodeAmp(float amp)
-            {
-                byte en_amp;
-
-                if (amp == 0)
-                    en_amp = 0;
-                else if (amp < 0.117)
-                    en_amp = (byte)(((Math.Log(amp * 1000, 2) * 32) - 0x60) / (5 - Math.Pow(amp, 2)) - 1);
-                else if (amp < 0.23)
-                    en_amp = (byte)(((Math.Log(amp * 1000, 2) * 32) - 0x60) - 0x5c);
-                else
-                    en_amp = (byte)((((Math.Log(amp * 1000, 2) * 32) - 0x60) * 2) - 0xf6);
-
-                return en_amp;
-            }
-
-            public byte[] GetData()
-            {
-                byte[] rumble_data = new byte[8];
-                float[] queued_data = queue.Dequeue();
-
-                if (queued_data[2] == 0.0f)
-                {
-                    rumble_data[0] = 0x0;
-                    rumble_data[1] = 0x1;
-                    rumble_data[2] = 0x40;
-                    rumble_data[3] = 0x40;
-                }
-                else
-                {
-                    queued_data[0] = clamp(queued_data[0], 40.875885f, 626.286133f);
-                    queued_data[1] = clamp(queued_data[1], 81.75177f, 1252.572266f);
-
-                    queued_data[2] = clamp(queued_data[2], 0.0f, 1.0f);
-
-                    UInt16 hf = (UInt16)((Math.Round(32f * Math.Log(queued_data[1] * 0.1f, 2)) - 0x60) * 4);
-                    byte lf = (byte)(Math.Round(32f * Math.Log(queued_data[0] * 0.1f, 2)) - 0x40);
-                    byte hf_amp = EncodeAmp(queued_data[2]);
-
-                    UInt16 lf_amp = (UInt16)(Math.Round((double)hf_amp) * .5);
-                    byte parity = (byte)(lf_amp % 2);
-                    if (parity > 0)
-                    {
-                        --lf_amp;
-                    }
-
-                    lf_amp = (UInt16)(lf_amp >> 1);
-                    lf_amp += 0x40;
-                    if (parity > 0) lf_amp |= 0x8000;
-
-                    hf_amp = (byte)(hf_amp - (hf_amp % 2)); // make even at all times to prevent weird hum
-                    rumble_data[0] = (byte)(hf & 0xff);
-                    rumble_data[1] = (byte)(((hf >> 8) & 0xff) + hf_amp);
-                    rumble_data[2] = (byte)(((lf_amp >> 8) & 0xff) + lf);
-                    rumble_data[3] = (byte)(lf_amp & 0xff);
-                }
-
-                for (int i = 0; i < 4; ++i)
-                {
-                    rumble_data[4 + i] = rumble_data[i];
-                }
-
-                return rumble_data;
-            }
-        }
-
         private Rumble rumble_obj;
 
         private byte global_count = 0;
@@ -219,16 +125,6 @@ namespace EvenBetterJoy.Domain
         ushort ds4_ts = 0;
         ulong lag;
 
-        int lowFreq = Int32.Parse(ConfigurationManager.AppSettings["LowFreqRumble"]);
-        int highFreq = Int32.Parse(ConfigurationManager.AppSettings["HighFreqRumble"]);
-
-        bool toRumble = Boolean.Parse(ConfigurationManager.AppSettings["EnableRumble"]);
-
-        bool showAsXInput = Boolean.Parse(ConfigurationManager.AppSettings["ShowAsXInput"]);
-        bool showAsDS4 = Boolean.Parse(ConfigurationManager.AppSettings["ShowAsDS4"]);
-
-        public MainForm form;
-
         public byte LED { get; private set; } = 0x0;
         public void SetLEDByPlayerNum(int id)
         {
@@ -238,7 +134,7 @@ namespace EvenBetterJoy.Domain
                 id = 3;
             }
 
-            if (ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None).AppSettings.Settings["UseIncrementalLights"].Value.ToLower() == "true")
+            if (settings.UseIncrementalLights)
             {
                 // Set all LEDs from 0 to the given id to lit
                 int ledId = id;
@@ -304,7 +200,7 @@ namespace EvenBetterJoy.Domain
 
         public void getActiveData()
         {
-            this.activeData = form.activeCaliData(serial_number);
+            activeData = form.activeCaliData(serial_number);
         }
 
         public void ReceiveRumble(Xbox360FeedbackReceivedEventArgs e)
@@ -1281,7 +1177,7 @@ namespace EvenBetterJoy.Domain
         public void SetRumble(float low_freq, float high_freq, float amp)
         {
             if (state <= Joycon.state_.ATTACHED) return;
-            rumble_obj.set_vals(low_freq, high_freq, amp);
+            rumble_obj.SetVals(low_freq, high_freq, amp);
         }
 
         private void SendRumble(byte[] buf)
@@ -1733,15 +1629,15 @@ namespace EvenBetterJoy.Domain
 
             if (other != null || isPro)
             {
-                byte lval = GyroAnalogSliders ? sliderVal[0] : Byte.MaxValue;
-                byte rval = GyroAnalogSliders ? sliderVal[1] : Byte.MaxValue;
+                byte lval = GyroAnalogSliders ? sliderVal[0] : byte.MaxValue;
+                byte rval = GyroAnalogSliders ? sliderVal[1] : byte.MaxValue;
                 output.trigger_left_value = (byte)(buttons[(int)(isLeft ? Button.SHOULDER_2 : Button.SHOULDER2_2)] ? lval : 0);
                 output.trigger_right_value = (byte)(buttons[(int)(isLeft ? Button.SHOULDER2_2 : Button.SHOULDER_2)] ? rval : 0);
             }
             else
             {
-                output.trigger_left_value = (byte)(buttons[(int)(isLeft ? Button.SHOULDER_2 : Button.SHOULDER_1)] ? Byte.MaxValue : 0);
-                output.trigger_right_value = (byte)(buttons[(int)(isLeft ? Button.SHOULDER_1 : Button.SHOULDER_2)] ? Byte.MaxValue : 0);
+                output.trigger_left_value = (byte)(buttons[(int)(isLeft ? Button.SHOULDER_2 : Button.SHOULDER_1)] ? byte.MaxValue : 0);
+                output.trigger_right_value = (byte)(buttons[(int)(isLeft ? Button.SHOULDER_1 : Button.SHOULDER_2)] ? byte.MaxValue : 0);
             }
             // Output digital L2 / R2 in addition to analog L2 / R2
             output.trigger_left = output.trigger_left_value > 0 ? output.trigger_left = true : output.trigger_left = false;
