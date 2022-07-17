@@ -8,10 +8,10 @@
         public string Capture { get; set; } = $"key_{WindowsInput.Events.KeyCode.PrintScreen}";
         public string Home { get; set; }
         //TODO: change these from l_l to something better
-        public string Sl_l { get; set; }
-        public string Sl_r { get; set; }
-        public string Sr_l { get; set; }
-        public string Sr_r { get; set; }
+        public string LeftJoyconL { get; set; }
+        public string LeftJoyconR { get; set; }
+        public string RightJoyconL { get; set; }
+        public string RightJoyconR { get; set; }
         public string Shake { get; set; }
         public string ResetMouse { get; set; } = $"joy_{ControllerButton.STICK}";
         public int ActiveGyro { get; set; }
