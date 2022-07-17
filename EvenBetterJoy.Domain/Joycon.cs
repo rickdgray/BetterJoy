@@ -1,17 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Configuration;
-using System.Diagnostics;
-using System.Linq;
+﻿using System.Diagnostics;
 using System.Net.NetworkInformation;
 using System.Numerics;
-using System.Threading;
-using System.Windows.Forms;
-using EvenBetterJoy.Controller;
+using EvenBetterJoy.Models;
 using Nefarius.ViGEm.Client.Targets.DualShock4;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 
-namespace EvenBetterJoy
+namespace EvenBetterJoy.Domain
 {
     public class Joycon
     {
@@ -49,55 +43,13 @@ namespace EvenBetterJoy
         private long inactivity = Stopwatch.GetTimestamp();
 
         public bool send = true;
-
-        public enum DebugType : int
-        {
-            NONE,
-            ALL,
-            COMMS,
-            THREADING,
-            IMU,
-            RUMBLE,
-            SHAKE,
-        };
+        
         public DebugType debug_type = (DebugType)int.Parse(ConfigurationManager.AppSettings["DebugType"]);
         //public DebugType debug_type = DebugType.NONE; //Keep this for manual debugging during development.
         public bool isLeft;
-        public enum state_ : uint
-        {
-            NOT_ATTACHED,
-            DROPPED,
-            NO_JOYCONS,
-            ATTACHED,
-            INPUT_MODE_0x30,
-            IMU_DATA_OK,
-        };
-        public state_ state;
-        public enum Button : int
-        {
-            DPAD_DOWN = 0,
-            DPAD_RIGHT = 1,
-            DPAD_LEFT = 2,
-            DPAD_UP = 3,
-            SL = 4,
-            SR = 5,
-            MINUS = 6,
-            HOME = 7,
-            PLUS = 8,
-            CAPTURE = 9,
-            STICK = 10,
-            SHOULDER_1 = 11,
-            SHOULDER_2 = 12,
-
-            // For pro controller
-            B = 13,
-            A = 14,
-            Y = 15,
-            X = 16,
-            STICK2 = 17,
-            SHOULDER2_1 = 18,
-            SHOULDER2_2 = 19,
-        };
+        
+        public ControllerState state;
+        
         private bool[] buttons_down = new bool[20];
         private bool[] buttons_up = new bool[20];
         private bool[] buttons = new bool[20];
@@ -112,25 +64,25 @@ namespace EvenBetterJoy
         byte[] default_buf = { 0x0, 0x1, 0x40, 0x40, 0x0, 0x1, 0x40, 0x40 };
 
         private byte[] stick_raw = { 0, 0, 0 };
-        private UInt16[] stick_cal = { 0, 0, 0, 0, 0, 0 };
-        private UInt16 deadzone;
-        private UInt16[] stick_precal = { 0, 0 };
+        private ushort[] stick_cal = { 0, 0, 0, 0, 0, 0 };
+        private ushort deadzone;
+        private ushort[] stick_precal = { 0, 0 };
 
         private byte[] stick2_raw = { 0, 0, 0 };
-        private UInt16[] stick2_cal = { 0, 0, 0, 0, 0, 0 };
-        private UInt16 deadzone2;
-        private UInt16[] stick2_precal = { 0, 0 };
+        private ushort[] stick2_cal = { 0, 0, 0, 0, 0, 0 };
+        private ushort deadzone2;
+        private ushort[] stick2_precal = { 0, 0 };
 
         private bool stop_polling = true;
         private bool imu_enabled = false;
-        private Int16[] acc_r = { 0, 0, 0 };
-        private Int16[] acc_neutral = { 0, 0, 0 };
-        private Int16[] acc_sensiti = { 0, 0, 0 };
+        private short[] acc_r = { 0, 0, 0 };
+        private short[] acc_neutral = { 0, 0, 0 };
+        private short[] acc_sensiti = { 0, 0, 0 };
         private Vector3 acc_g;
 
-        private Int16[] gyr_r = { 0, 0, 0 };
-        private Int16[] gyr_neutral = { 0, 0, 0 };
-        private Int16[] gyr_sensiti = { 0, 0, 0 };
+        private short[] gyr_r = { 0, 0, 0 };
+        private short[] gyr_neutral = { 0, 0, 0 };
+        private short[] gyr_sensiti = { 0, 0, 0 };
         private Vector3 gyr_g;
 
         private float[] cur_rotation; // Filtered IMU data
@@ -146,9 +98,9 @@ namespace EvenBetterJoy
             18642
         };
 
-        private Int16[] pro_hor_offset = { -710, 0, 0 };
-        private Int16[] left_hor_offset = { 0, 0, 0 };
-        private Int16[] right_hor_offset = { 0, 0, 0 };
+        private short[] pro_hor_offset = { -710, 0, 0 };
+        private short[] left_hor_offset = { 0, 0, 0 };
+        private short[] right_hor_offset = { 0, 0, 0 };
 
         private bool do_localize;
         private float filterweight;
@@ -697,9 +649,9 @@ namespace EvenBetterJoy
                 {
                     shakedTime = currentShakeTime;
                     hasShaked = true;
-
+                    
                     // Mapped shake key down
-                    Simulate(Config.GetValue("shake"), false, false);
+                    Simulate(Config.Settings, false, false);
                     DebugPrint("Shaked at time: " + shakedTime.ToString(), DebugType.SHAKE);
                 }
 

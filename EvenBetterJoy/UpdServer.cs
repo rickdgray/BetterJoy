@@ -4,6 +4,7 @@ using System.Configuration;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using EvenBetterJoy.Domain;
 using Force.Crc32;
 
 namespace EvenBetterJoy
@@ -23,58 +24,8 @@ namespace EvenBetterJoy
         {
             controllers = p;
         }
-
-        enum MessageType
-        {
-            DSUC_VersionReq = 0x100000,
-            DSUS_VersionRsp = 0x100000,
-            DSUC_ListPorts = 0x100001,
-            DSUS_PortInfo = 0x100001,
-            DSUC_PadDataReq = 0x100002,
-            DSUS_PadDataRsp = 0x100002,
-        };
-
+        
         private const ushort MaxProtocolVersion = 1001;
-
-        class ClientRequestTimes
-        {
-            DateTime allPads;
-            DateTime[] padIds;
-            Dictionary<PhysicalAddress, DateTime> padMacs;
-
-            public DateTime AllPadsTime { get { return allPads; } }
-            public DateTime[] PadIdsTime { get { return padIds; } }
-            public Dictionary<PhysicalAddress, DateTime> PadMacsTime { get { return padMacs; } }
-
-            public ClientRequestTimes()
-            {
-                allPads = DateTime.MinValue;
-                padIds = new DateTime[4];
-
-                for (int i = 0; i < padIds.Length; i++)
-                    padIds[i] = DateTime.MinValue;
-
-                padMacs = new Dictionary<PhysicalAddress, DateTime>();
-            }
-
-            public void RequestPadInfo(byte regFlags, byte idToReg, PhysicalAddress macToReg)
-            {
-                if (regFlags == 0)
-                    allPads = DateTime.UtcNow;
-                else
-                {
-                    if ((regFlags & 0x01) != 0) //id valid
-                    {
-                        if (idToReg < padIds.Length)
-                            padIds[idToReg] = DateTime.UtcNow;
-                    }
-                    if ((regFlags & 0x02) != 0) //mac valid
-                    {
-                        padMacs[macToReg] = DateTime.UtcNow;
-                    }
-                }
-            }
-        }
 
         private Dictionary<IPEndPoint, ClientRequestTimes> clients = new Dictionary<IPEndPoint, ClientRequestTimes>();
 
@@ -101,7 +52,7 @@ namespace EvenBetterJoy
             return currIdx;
         }
 
-        private void FinishPacket(byte[] packetBuf)
+        private static void FinishPacket(byte[] packetBuf)
         {
             Array.Clear(packetBuf, 8, 4);
 
@@ -116,7 +67,7 @@ namespace EvenBetterJoy
             Array.Copy(usefulData, 0, packetData, currIdx, usefulData.Length);
             FinishPacket(packetData);
 
-            try { udpSock.SendTo(packetData, clientEP); } catch (Exception e) { }
+            udpSock.SendTo(packetData, clientEP);
         }
 
         private void ProcessIncoming(byte[] localMsg, IPEndPoint clientEP)
@@ -168,7 +119,7 @@ namespace EvenBetterJoy
                 uint messageType = BitConverter.ToUInt32(localMsg, currIdx);
                 currIdx += 4;
 
-                if (messageType == (uint)MessageType.DSUC_VersionReq)
+                if (messageType == (uint)ControllerMessageType.DSUC_VersionReq)
                 {
                     byte[] outputData = new byte[8];
                     int outIdx = 0;

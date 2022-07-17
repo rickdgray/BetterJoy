@@ -1,20 +1,19 @@
-﻿using System;
-using System.IO;
+﻿using EvenBetterJoy.Models;
 using System.Text.Json;
-using EvenBetterJoy.Models;
 
-namespace EvenBetterJoy
+namespace EvenBetterJoy.Services
 {
-    public class Config
+    public class SettingsService : ISettingsService
     {
         public readonly string path;
         public Settings Settings { get; set; }
 
-        public Config()
+        public SettingsService()
         {
             path = $"{Path.GetDirectoryName(AppContext.BaseDirectory)}\\settings";
+            Load();
         }
-        
+
         public void Load()
         {
             if (File.Exists(path))

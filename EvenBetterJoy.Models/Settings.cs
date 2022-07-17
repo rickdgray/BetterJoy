@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace EvenBetterJoy.Models
+﻿namespace EvenBetterJoy.Models
 {
     public class Settings
     {
@@ -15,7 +13,7 @@ namespace EvenBetterJoy.Models
         public string Sr_l { get; set; }
         public string Sr_r { get; set; }
         public string Shake { get; set; }
-        public string ResetMouse { get; set; } = $"joy_{Joycon.Button.STICK}";
+        public string ResetMouse { get; set; } = $"joy_{ControllerButton.STICK}";
         public int ActiveGyro { get; set; }
         //TODO: probably can switch off array here
         public List<KeyValuePair<string, float[]>> CalibrationData { get; set; }
