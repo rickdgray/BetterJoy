@@ -8,6 +8,7 @@ using System.Text;
 using System.Timers;
 using EvenBetterJoy.Models;
 using EvenBetterJoy.Services;
+using System.Globalization;
 
 namespace EvenBetterJoy.Domain
 {
@@ -16,12 +17,13 @@ namespace EvenBetterJoy.Domain
         public bool EnableIMU = true;
         public bool EnableLocalize = false;
 
-        private const ushort vendor_id = 0x57e;
-        private const ushort product_l = 0x2006;
-        private const ushort product_r = 0x2007;
-        private const ushort product_pro = 0x2009;
-        private const ushort product_snes = 0x2017;
-        private const ushort product_n64 = 0x2019;
+        private const ushort NINTENDO = 0x57e;
+        private const ushort LEFT_JOYCON = 0x2006;
+        private const ushort RIGHT_JOYCON = 0x2007;
+        private const ushort PRO_CONTROLLER = 0x2009;
+        //private const ushort NES_CONTROLLER = 0x????;
+        private const ushort SNES_CONTROLLER = 0x2017;
+        private const ushort N64_CONTROLLER = 0x2019;
 
         private readonly ConcurrentDictionary<int, Joycon> joycons;
 
@@ -54,7 +56,7 @@ namespace EvenBetterJoy.Domain
         private void PollJoycons(object source, ElapsedEventArgs e)
         {
             CleanUp();
-            
+
             if (settings.ProgressiveScan)
             {
                 CheckForNewControllers();
@@ -69,7 +71,10 @@ namespace EvenBetterJoy.Domain
                 if (joycon.state == ControllerState.DROPPED)
                 {
                     if (joycon.other != null)
-                        joycon.other.other = null; // The other of the other is the joycon itself
+                    {
+                        // The other of the other is the joycon itself
+                        joycon.other.other = null;
+                    }
 
                     joycon.Detach(true);
                     disconnectedJoycons.Add(joycon);
@@ -88,17 +93,18 @@ namespace EvenBetterJoy.Domain
         {
             return type switch
             {
-                1 => product_pro,
-                2 => product_l,
-                3 => product_r,
+                1 => PRO_CONTROLLER,
+                2 => LEFT_JOYCON,
+                3 => RIGHT_JOYCON,
+                4 => SNES_CONTROLLER,
+                5 => N64_CONTROLLER,
                 _ => 0
             };
         }
 
         public void CheckForNewControllers()
         {
-            // move all code for initializing devices here and well as the initial code from Start()
-            bool isLeft = false;
+            bool isLeft = true;
             IntPtr ptr = deviceService.EnumerateDevice(0x0, 0x0);
             IntPtr top_ptr = ptr;
 
@@ -111,18 +117,22 @@ namespace EvenBetterJoy.Domain
 
                 if (enumerate.serial_number == null)
                 {
-                    ptr = enumerate.next; // can't believe it took me this long to figure out why USB connections used up so much CPU.
-                                          // it was getting stuck in an inf loop here!
+                    ptr = enumerate.next;
                     continue;
                 }
 
-                bool validController = (enumerate.product_id == product_l || enumerate.product_id == product_r ||
-                                        enumerate.product_id == product_pro || enumerate.product_id == product_snes) && enumerate.vendor_id == vendor_id;
+                bool validController = enumerate.vendor_id == NINTENDO
+                    && (enumerate.product_id == LEFT_JOYCON
+                        || enumerate.product_id == RIGHT_JOYCON
+                        || enumerate.product_id == PRO_CONTROLLER
+                        || enumerate.product_id == SNES_CONTROLLER
+                        || enumerate.product_id == N64_CONTROLLER);
 
-                ushort prod_id = thirdParty == null ? enumerate.product_id : TypeToProdId(thirdParty.type);
+                ushort prod_id = enumerate.product_id;
                 if (prod_id == 0)
                 {
-                    ptr = enumerate.next; // controller was not assigned a type, but advance ptr anyway
+                    // controller was not assigned a type, but advance ptr anyway
+                    ptr = enumerate.next;
                     continue;
                 }
 
@@ -130,21 +140,21 @@ namespace EvenBetterJoy.Domain
                 {
                     switch (prod_id)
                     {
-                        case product_l:
-                            isLeft = true;
+                        case LEFT_JOYCON:
                             logger.LogInformation("Left Joy-Con connected.");
                             break;
-                        case product_r:
+                        case RIGHT_JOYCON:
                             isLeft = false;
                             logger.LogInformation("Right Joy-Con connected.");
                             break;
-                        case product_pro:
-                            isLeft = true;
+                        case PRO_CONTROLLER:
                             logger.LogInformation("Pro controller connected.");
                             break;
-                        case product_snes:
-                            isLeft = true;
+                        case SNES_CONTROLLER:
                             logger.LogInformation("SNES controller connected.");
+                            break;
+                        case N64_CONTROLLER:
+                            logger.LogInformation("N64 controller connected.");
                             break;
                         default:
                             logger.LogInformation("Non Joy-Con Nintendo input device skipped.");
@@ -175,22 +185,26 @@ namespace EvenBetterJoy.Domain
                             logger.LogError("Unable to add controller to block-list.");
                         }
                     }
-                    // -------------------- //
 
-                    IntPtr handle = HidOpenPath(enumerate.path);
+                    IntPtr handle = deviceService.OpenDevice(enumerate.path);
                     try
                     {
-                        HidSetNonblocking(handle, 1);
+                        deviceService.SetDeviceNonblocking(handle, 1);
                     }
                     catch
                     {
-                        form.AppendTextBox("Unable to open path to device - are you using the correct (64 vs 32-bit) version for your PC?\r\n");
+                        logger.LogError("Unable to open path to device - are you using the correct (64 vs 32-bit) version for your PC?");
                         break;
                     }
 
-                    bool isPro = prod_id == product_pro;
-                    bool isSnes = prod_id == product_snes;
-                    joycons.Add(new Joycon(handle, EnableIMU, EnableLocalize & EnableIMU, 0.05f, isLeft, enumerate.path, enumerate.serial_number, joycons.Count, isPro, isSnes, thirdParty != null));
+                    bool isPro = prod_id == PRO_CONTROLLER;
+                    bool isSnes = prod_id == SNES_CONTROLLER;
+                    bool isN64 = prod_id == N64_CONTROLLER;
+
+                    var joycon = new Joycon(handle, EnableIMU, EnableLocalize & EnableIMU, 0.05f,
+                        isLeft, enumerate.path, enumerate.serial_number, joycons.Count, isPro, isSnes, isN64);
+
+                    joycons.TryAdd(joycon.GetHashCode(), joycon);
 
                     foundNew = true;
 
@@ -198,7 +212,9 @@ namespace EvenBetterJoy.Domain
                     try
                     {
                         for (int n = 0; n < 6; n++)
-                            mac[n] = byte.Parse(enumerate.serial_number.Substring(n * 2, 2), System.Globalization.NumberStyles.HexNumber);
+                        {
+                            mac[n] = byte.Parse(enumerate.serial_number.Substring(n * 2, 2), NumberStyles.HexNumber);
+                        }
                     }
                     catch (Exception e)
                     {
@@ -211,14 +227,15 @@ namespace EvenBetterJoy.Domain
             }
 
             if (foundNew)
-            { // attempt to auto join-up joycons on connection
+            {
+                // attempt to auto join-up joycons on connection
                 Joycon temp = null;
-                foreach (Joycon v in joycons)
+                foreach ((_, Joycon joycon) in joycons)
                 {
                     // Do not attach two controllers if they are either:
                     // - Not a Joycon
                     // - Already attached to another Joycon (that isn't itself)
-                    if (v.isPro || (v.other != null && v.other != v))
+                    if (joycon.isPro || (joycon.other != null && joycon.other != joycon))
                     {
                         continue;
                     }
@@ -226,11 +243,13 @@ namespace EvenBetterJoy.Domain
                     // Otherwise, iterate through and find the Joycon with the lowest
                     // id that has not been attached already (Does not include self)
                     if (temp == null)
-                        temp = v;
-                    else if (temp.isLeft != v.isLeft && v.other == null)
                     {
-                        temp.other = v;
-                        v.other = temp;
+                        temp = joycon;
+                    }
+                    else if (temp.isLeft != joycon.isLeft && joycon.other == null)
+                    {
+                        temp.other = joycon;
+                        joycon.other = temp;
 
                         if (temp.out_xbox != null)
                         {
@@ -238,7 +257,7 @@ namespace EvenBetterJoy.Domain
                             {
                                 temp.out_xbox.Disconnect();
                             }
-                            catch (Exception e)
+                            catch
                             {
                                 // it wasn't connected in the first place, go figure
                             }
@@ -249,81 +268,73 @@ namespace EvenBetterJoy.Domain
                             {
                                 temp.out_ds4.Disconnect();
                             }
-                            catch (Exception e)
+                            catch
                             {
                                 // it wasn't connected in the first place, go figure
                             }
                         }
-                        temp.out_xbox = null;
-                        temp.out_ds4 = null;
-
-                        foreach (Button b in form.con)
-                            if (b.Tag == v || b.Tag == temp)
-                            {
-                                Joycon tt = (b.Tag == v) ? v : (b.Tag == temp) ? temp : v;
-                                b.BackgroundImage = tt.isLeft ? Properties.Resources.jc_left : Properties.Resources.jc_right;
-                            }
-
-                        temp = null;    // repeat
+                        
+                        temp = null;
                     }
                 }
             }
 
-            HidApi.HidFreeEnumeration(top_ptr);
+            deviceService.FreeDeviceList(top_ptr);
 
-            bool on = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None).AppSettings.Settings["HomeLEDOn"].Value.ToLower() == "true";
-            foreach (Joycon jc in joycons)
-            { // Connect device straight away
-                if (jc.state == Joycon.state_.NOT_ATTACHED)
+            foreach ((_, Joycon joycon) in joycons)
+            {
+                // Connect device straight away
+                if (joycon.state == ControllerState.NOT_ATTACHED)
                 {
-                    if (jc.out_xbox != null)
-                        jc.out_xbox.Connect();
-                    if (jc.out_ds4 != null)
-                        jc.out_ds4.Connect();
+                    if (joycon.out_xbox != null)
+                    {
+                        joycon.out_xbox.Connect();
+                    }
+                    
+                    if (joycon.out_ds4 != null)
+                    {
+                        joycon.out_ds4.Connect();
+                    }
 
                     try
                     {
-                        jc.Attach();
+                        joycon.Attach();
                     }
-                    catch (Exception e)
+                    catch
                     {
-                        jc.state = Joycon.state_.DROPPED;
+                        joycon.state = ControllerState.DROPPED;
                         continue;
                     }
 
-                    jc.SetHomeLight(on);
-
-                    jc.Begin();
-                    if (form.allowCalibration)
-                    {
-                        jc.getActiveData();
-                    }
+                    joycon.SetHomeLight(settings.HomeLedOn);
+                    joycon.Begin();
                 }
             }
         }
 
         public void OnApplicationQuit()
         {
-            foreach (Joycon v in joycons)
+            foreach ((_, Joycon joycon) in joycons)
             {
-                if (Boolean.Parse(ConfigurationManager.AppSettings["AutoPowerOff"]))
-                    v.PowerOff();
-
-                v.Detach();
-
-                if (v.out_xbox != null)
+                if (settings.AutoPowerOff)
                 {
-                    v.out_xbox.Disconnect();
+                    joycon.PowerOff();
                 }
 
-                if (v.out_ds4 != null)
+                joycon.Detach();
+
+                if (joycon.out_xbox != null)
                 {
-                    v.out_ds4.Disconnect();
+                    joycon.out_xbox.Disconnect();
+                }
+
+                if (joycon.out_ds4 != null)
+                {
+                    joycon.out_ds4.Disconnect();
                 }
             }
 
             joyconPoller.Stop();
-            HidApi.HidExit();
         }
     }
 }

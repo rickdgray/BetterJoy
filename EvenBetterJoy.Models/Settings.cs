@@ -32,5 +32,7 @@ namespace EvenBetterJoy.Models
         public bool PurgeAffectedDevices { get; set; }
         public IPAddress IpAddress { get; set; }
         public int Port { get; set; }
+        public bool HomeLedOn { get; set; }
+        public bool AutoPowerOff { get; set; }
     }
 }
