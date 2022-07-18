@@ -1,11 +1,13 @@
-﻿using EvenBetterJoy.Models;
-using EvenBetterJoy.Services;
+﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Timers;
+using EvenBetterJoy.Models;
+using EvenBetterJoy.Services;
 
 namespace EvenBetterJoy.Domain
 {
@@ -19,113 +21,92 @@ namespace EvenBetterJoy.Domain
         private const ushort product_r = 0x2007;
         private const ushort product_pro = 0x2009;
         private const ushort product_snes = 0x2017;
+        private const ushort product_n64 = 0x2019;
 
-        // Array of all connected Joy-Cons
-        public ConcurrentBag<Joycon> j { get; private set; }
+        private readonly ConcurrentDictionary<int, Joycon> joycons;
 
-        System.Timers.Timer controllerCheck;
+        System.Timers.Timer joyconPoller;
 
-        IDeviceService hidService;
+        private readonly IDeviceService deviceService;
+        private readonly ILogger logger;
+        private readonly Settings settings;
 
-        public JoyconManager(IDeviceService hidService)
+        public JoyconManager(
+            IDeviceService deviceService,
+            ILogger<JoyconManager> logger,
+            IOptions<Settings> settings)
         {
-            this.hidService = hidService;
-        }
+            this.deviceService = deviceService;
+            this.logger = logger;
+            this.settings = settings.Value;
 
-        public void Awake()
-        {
-            j = new ConcurrentBag<Joycon>();
-            hidService.HidInit();
+            joycons = new ConcurrentDictionary<int, Joycon>();
         }
 
         public void Start()
         {
-            controllerCheck = new System.Timers.Timer(2000); // check for new controllers every 2 seconds
-            controllerCheck.Elapsed += CheckForNewControllersTime;
-            controllerCheck.Start();
+            // check for new controllers every 2 seconds
+            joyconPoller = new System.Timers.Timer(2000);
+            joyconPoller.Elapsed += PollJoycons;
+            joyconPoller.Start();
         }
 
-        bool ControllerAlreadyAdded(string path)
-        {
-            foreach (Joycon v in j)
-                if (v.path == path)
-                    return true;
-            return false;
-        }
-
-        void CleanUp()
-        {
-            // removes dropped controllers from list
-            var rem = new List<Joycon>();
-            foreach (Joycon joycon in j)
-            {
-                if (joycon.state == Joycon.state_.DROPPED)
-                {
-                    if (joycon.other != null)
-                        joycon.other.other = null; // The other of the other is the joycon itself
-
-                    joycon.Detach(true);
-                    rem.Add(joycon);
-
-                    foreach (Button b in form.con)
-                    {
-                        if (b.Enabled & b.Tag == joycon)
-                        {
-                            b.Invoke(new MethodInvoker(delegate
-                            {
-                                b.BackColor = System.Drawing.Color.FromArgb(0x00, System.Drawing.SystemColors.Control);
-                                b.Enabled = false;
-                                b.BackgroundImage = Properties.Resources.cross;
-                            }));
-                            break;
-                        }
-                    }
-
-                    form.AppendTextBox("Removed dropped controller. Can be reconnected.\r\n");
-                }
-            }
-
-            foreach (Joycon v in rem)
-                j.Remove(v);
-        }
-
-        void CheckForNewControllersTime(object source, ElapsedEventArgs e)
+        private void PollJoycons(object source, ElapsedEventArgs e)
         {
             CleanUp();
-            if (Config.IntValue("ProgressiveScan") == 1)
+            
+            if (settings.ProgressiveScan)
             {
                 CheckForNewControllers();
             }
         }
 
+        private void CleanUp()
+        {
+            var disconnectedJoycons = new List<Joycon>();
+            foreach ((_, Joycon joycon) in joycons)
+            {
+                if (joycon.state == ControllerState.DROPPED)
+                {
+                    if (joycon.other != null)
+                        joycon.other.other = null; // The other of the other is the joycon itself
+
+                    joycon.Detach(true);
+                    disconnectedJoycons.Add(joycon);
+
+                    logger.LogInformation("Removed dropped controller. Can be reconnected.");
+                }
+            }
+
+            foreach (Joycon disconnectedJoycon in disconnectedJoycons)
+            {
+                joycons.TryRemove(disconnectedJoycon.GetHashCode(), out _);
+            }
+        }
+
         private static ushort TypeToProdId(byte type)
         {
-            switch (type)
+            return type switch
             {
-                case 1:
-                    return product_pro;
-                case 2:
-                    return product_l;
-                case 3:
-                    return product_r;
-                default:
-                    break;
-            }
-            return 0;
+                1 => product_pro,
+                2 => product_l,
+                3 => product_r,
+                _ => 0
+            };
         }
 
         public void CheckForNewControllers()
         {
             // move all code for initializing devices here and well as the initial code from Start()
             bool isLeft = false;
-            IntPtr ptr = HidEnumerate(0x0, 0x0);
+            IntPtr ptr = deviceService.EnumerateDevice(0x0, 0x0);
             IntPtr top_ptr = ptr;
 
-            DeviceInfo enumerate; // Add device to list
+            // Add device to list
+            DeviceInfo enumerate;
             bool foundNew = false;
             while (ptr != IntPtr.Zero)
             {
-                SController thirdParty = null;
                 enumerate = (DeviceInfo)Marshal.PtrToStructure(ptr, typeof(DeviceInfo));
 
                 if (enumerate.serial_number == null)
@@ -137,16 +118,6 @@ namespace EvenBetterJoy.Domain
 
                 bool validController = (enumerate.product_id == product_l || enumerate.product_id == product_r ||
                                         enumerate.product_id == product_pro || enumerate.product_id == product_snes) && enumerate.vendor_id == vendor_id;
-                // check list of custom controllers specified
-                foreach (SController v in Program.thirdPartyCons)
-                {
-                    if (enumerate.vendor_id == v.vendor_id && enumerate.product_id == v.product_id && enumerate.serial_number == v.serial_number)
-                    {
-                        validController = true;
-                        thirdParty = v;
-                        break;
-                    }
-                }
 
                 ushort prod_id = thirdParty == null ? enumerate.product_id : TypeToProdId(thirdParty.type);
                 if (prod_id == 0)
@@ -155,28 +126,33 @@ namespace EvenBetterJoy.Domain
                     continue;
                 }
 
-                if (validController && !ControllerAlreadyAdded(enumerate.path))
+                if (validController && !joycons.Any(j => j.Value.path == enumerate.path))
                 {
                     switch (prod_id)
                     {
                         case product_l:
                             isLeft = true;
-                            form.AppendTextBox("Left Joy-Con connected.\r\n"); break;
+                            logger.LogInformation("Left Joy-Con connected.");
+                            break;
                         case product_r:
                             isLeft = false;
-                            form.AppendTextBox("Right Joy-Con connected.\r\n"); break;
+                            logger.LogInformation("Right Joy-Con connected.");
+                            break;
                         case product_pro:
                             isLeft = true;
-                            form.AppendTextBox("Pro controller connected.\r\n"); break;
+                            logger.LogInformation("Pro controller connected.");
+                            break;
                         case product_snes:
                             isLeft = true;
-                            form.AppendTextBox("SNES controller connected.\r\n"); break;
+                            logger.LogInformation("SNES controller connected.");
+                            break;
                         default:
-                            form.AppendTextBox("Non Joy-Con Nintendo input device skipped.\r\n"); break;
+                            logger.LogInformation("Non Joy-Con Nintendo input device skipped.");
+                            break;
                     }
 
                     // Add controller to block-list for HidGuardian
-                    if (useHIDG)
+                    if (settings.UseHidg)
                     {
                         HttpWebRequest request = (HttpWebRequest)WebRequest.Create(@"http://localhost:26762/api/v1/hidguardian/affected/add/");
                         string postData = @"hwids=HID\" + enumerate.path.Split('#')[1].ToUpper();
@@ -196,7 +172,7 @@ namespace EvenBetterJoy.Domain
                         }
                         catch
                         {
-                            form.AppendTextBox("Unable to add controller to block-list.\r\n");
+                            logger.LogError("Unable to add controller to block-list.");
                         }
                     }
                     // -------------------- //
@@ -214,52 +190,9 @@ namespace EvenBetterJoy.Domain
 
                     bool isPro = prod_id == product_pro;
                     bool isSnes = prod_id == product_snes;
-                    j.Add(new Joycon(handle, EnableIMU, EnableLocalize & EnableIMU, 0.05f, isLeft, enumerate.path, enumerate.serial_number, j.Count, isPro, isSnes, thirdParty != null));
+                    joycons.Add(new Joycon(handle, EnableIMU, EnableLocalize & EnableIMU, 0.05f, isLeft, enumerate.path, enumerate.serial_number, joycons.Count, isPro, isSnes, thirdParty != null));
 
                     foundNew = true;
-                    j.Last().form = form;
-
-                    if (j.Count < 5)
-                    {
-                        int ii = -1;
-                        foreach (Button v in form.con)
-                        {
-                            ii++;
-                            if (!v.Enabled)
-                            {
-                                System.Drawing.Bitmap temp;
-                                switch (prod_id)
-                                {
-                                    case (product_l):
-                                        temp = Properties.Resources.jc_left_s; break;
-                                    case (product_r):
-                                        temp = Properties.Resources.jc_right_s; break;
-                                    case (product_pro):
-                                        temp = Properties.Resources.pro; break;
-                                    case (product_snes):
-                                        temp = Properties.Resources.snes; break;
-                                    default:
-                                        temp = Properties.Resources.cross; break;
-                                }
-
-                                v.Invoke(new MethodInvoker(delegate
-                                {
-                                    v.Tag = j.Last(); // assign controller to button
-                                    v.Enabled = true;
-                                    v.Click += new EventHandler(form.conBtnClick);
-                                    v.BackgroundImage = temp;
-                                }));
-
-                                form.loc[ii].Invoke(new MethodInvoker(delegate
-                                {
-                                    form.loc[ii].Tag = v;
-                                    form.loc[ii].Click += new EventHandler(form.locBtnClickAsync);
-                                }));
-
-                                break;
-                            }
-                        }
-                    }
 
                     byte[] mac = new byte[6];
                     try
@@ -269,9 +202,9 @@ namespace EvenBetterJoy.Domain
                     }
                     catch (Exception e)
                     {
-                        // could not parse mac address
+                        logger.LogError($"Unable to parse mac address: {e.Message}");
                     }
-                    j[j.Count - 1].PadMacAddress = new PhysicalAddress(mac);
+                    joycons[joycons.Count - 1].PadMacAddress = new PhysicalAddress(mac);
                 }
 
                 ptr = enumerate.next;
@@ -280,7 +213,7 @@ namespace EvenBetterJoy.Domain
             if (foundNew)
             { // attempt to auto join-up joycons on connection
                 Joycon temp = null;
-                foreach (Joycon v in j)
+                foreach (Joycon v in joycons)
                 {
                     // Do not attach two controllers if they are either:
                     // - Not a Joycon
@@ -339,7 +272,7 @@ namespace EvenBetterJoy.Domain
             HidApi.HidFreeEnumeration(top_ptr);
 
             bool on = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None).AppSettings.Settings["HomeLEDOn"].Value.ToLower() == "true";
-            foreach (Joycon jc in j)
+            foreach (Joycon jc in joycons)
             { // Connect device straight away
                 if (jc.state == Joycon.state_.NOT_ATTACHED)
                 {
@@ -371,7 +304,7 @@ namespace EvenBetterJoy.Domain
 
         public void OnApplicationQuit()
         {
-            foreach (Joycon v in j)
+            foreach (Joycon v in joycons)
             {
                 if (Boolean.Parse(ConfigurationManager.AppSettings["AutoPowerOff"]))
                     v.PowerOff();
@@ -389,7 +322,7 @@ namespace EvenBetterJoy.Domain
                 }
             }
 
-            controllerCheck.Stop();
+            joyconPoller.Stop();
             HidApi.HidExit();
         }
     }

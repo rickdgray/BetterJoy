@@ -196,14 +196,14 @@ namespace EvenBetterJoy
                 { // needs connecting to other joycon (so messy omg)
                     bool succ = false;
 
-                    if (Program.mgr.j.Count == 1 || doNotRejoin)
+                    if (Program.mgr.joycons.Count == 1 || doNotRejoin)
                     { // when want to have a single joycon in vertical mode
                         v.other = v; // hacky; implement check in Joycon.cs to account for this
                         succ = true;
                     }
                     else
                     {
-                        foreach (Joycon jc in Program.mgr.j)
+                        foreach (Joycon jc in Program.mgr.joycons)
                         {
                             if (!jc.isPro && jc.isLeft != v.isLeft && jc != v && jc.other == null)
                             {
@@ -351,7 +351,7 @@ namespace EvenBetterJoy
                 if (KeyCtl == "HomeLEDOn")
                 {
                     bool on = settings[KeyCtl].Value.ToLower() == "true";
-                    foreach (Joycon j in Program.mgr.j)
+                    foreach (Joycon j in Program.mgr.joycons)
                     {
                         j.SetHomeLight(on);
                     }
@@ -368,13 +368,13 @@ namespace EvenBetterJoy
         }
         private void StartCalibrate(object sender, EventArgs e)
         {
-            if (Program.mgr.j.IsEmpty)
+            if (Program.mgr.joycons.IsEmpty)
             {
                 console.Text = "Please connect a single pro controller.";
                 return;
             }
             
-            if (Program.mgr.j.Count > 1)
+            if (Program.mgr.joycons.Count > 1)
             {
                 console.Text = "Please calibrate one controller at a time (disconnect others).";
                 return;
@@ -427,7 +427,7 @@ namespace EvenBetterJoy
             {
                 countDown.Stop();
                 calibrate = false;
-                var serNum = Program.mgr.j.First().serial_number;
+                var serNum = Program.mgr.joycons.First().serial_number;
                 var serIndex = findSer(serNum);
                 float[] Arr = new float[6] { 0, 0, 0, 0, 0, 0 };
                 if (serIndex == -1)
@@ -451,7 +451,7 @@ namespace EvenBetterJoy
                 console.Text += "Calibration completed!\r\n";
                 settingsService.Settings.CalibrationData = caliData;
                 settingsService.Save();
-                Program.mgr.j.First().getActiveData();
+                Program.mgr.joycons.First().getActiveData();
                 AutoCalibrate.Enabled = true;
             }
             else

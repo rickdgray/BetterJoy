@@ -43,7 +43,6 @@ namespace EvenBetterJoy.Terminal
                 virtualGamepadService.Start();
             }
 
-            joyconManagerService.Awake();
             joyconManagerService.CheckForNewControllers();
             joyconManagerService.Start();
 

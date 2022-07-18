@@ -145,7 +145,7 @@ namespace EvenBetterJoy
             mgr.CheckForNewControllers();
             mgr.Start();
 
-            server = new UdpServer(mgr.j)
+            server = new UdpServer(mgr.joycons)
             {
                 form = form
             };
@@ -173,7 +173,7 @@ namespace EvenBetterJoy
                 res_val = Config.GetValue("active_gyro");
                 if (res_val.StartsWith("mse_"))
                     if ((int)e.Data.ButtonDown.Button == int.Parse(res_val.Substring(4)))
-                        foreach (var i in mgr.j)
+                        foreach (var i in mgr.joycons)
                             i.active_gyro = true;
             }
 
@@ -182,7 +182,7 @@ namespace EvenBetterJoy
                 string res_val = Config.GetValue("active_gyro");
                 if (res_val.StartsWith("mse_"))
                     if ((int)e.Data.ButtonUp.Button == int.Parse(res_val.Substring(4)))
-                        foreach (var i in mgr.j)
+                        foreach (var i in mgr.joycons)
                             i.active_gyro = false;
             }
         }
@@ -199,7 +199,7 @@ namespace EvenBetterJoy
                 res_val = Config.GetValue("active_gyro");
                 if (res_val.StartsWith("key_"))
                     if ((int)e.Data.KeyDown.Key == int.Parse(res_val.Substring(4)))
-                        foreach (var i in mgr.j)
+                        foreach (var i in mgr.joycons)
                             i.active_gyro = true;
             }
 
@@ -208,7 +208,7 @@ namespace EvenBetterJoy
                 string res_val = Config.GetValue("active_gyro");
                 if (res_val.StartsWith("key_"))
                     if ((int)e.Data.KeyUp.Key == int.Parse(res_val.Substring(4)))
-                        foreach (var i in mgr.j)
+                        foreach (var i in mgr.joycons)
                             i.active_gyro = false;
             }
         }
