@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.2.32630.192
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EvenBetterJoy", "EvenBetterJoy\EvenBetterJoy.csproj", "{1BF709E9-C133-41DF-933A-C9FF3F664C7B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EvenBetterJoy.Old", "EvenBetterJoy\EvenBetterJoy.Old.csproj", "{1BF709E9-C133-41DF-933A-C9FF3F664C7B}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EvenBetterJoy.Services", "EvenBetterJoy.Services\EvenBetterJoy.Services.csproj", "{F1BCA822-992A-4E33-ABBC-912F4B80810C}"
 EndProject

@@ -2,7 +2,7 @@
 
 namespace EvenBetterJoy.Services
 {
-    public class DeviceService: IDeviceService
+    public class DeviceService: IDeviceService, IDisposable
     {
         const string DLL = "hidapi.dll";
 
@@ -14,8 +14,10 @@ namespace EvenBetterJoy.Services
             }
         }
 
-        public static void Dispose()
+        public void Dispose()
         {
+            GC.SuppressFinalize(this);
+
             if (hid_exit() != 0)
             {
                 throw new Exception("Failed to exit HIDAPI");

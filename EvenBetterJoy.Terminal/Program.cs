@@ -24,6 +24,7 @@ namespace EvenBetterJoy.Terminal
                     services
                         .AddHostedService<ApplicationHostedService>()
                         .AddTransient<IEvenBetterJoyApplication, EvenBetterJoyApplication>()
+                        .AddSingleton<IVirtualGamepadService, VirtualGamepadService>()
                         .AddSingleton<ICommunicationService, CommunicationService>()
                         .AddSingleton<IDeviceService, DeviceService>()
                         .AddSingleton<IGyroService, GyroService>()
