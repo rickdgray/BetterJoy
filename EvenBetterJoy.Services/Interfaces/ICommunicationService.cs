@@ -1,6 +1,4 @@
-﻿using System.Net;
-
-namespace EvenBetterJoy.Services
+﻿namespace EvenBetterJoy.Services
 {
     public interface ICommunicationService
     {

@@ -6,10 +6,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Nefarius.ViGEm.Client" Version="1.17.183" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\EvenBetterJoy.Services\EvenBetterJoy.Services.csproj" />
   </ItemGroup>
 

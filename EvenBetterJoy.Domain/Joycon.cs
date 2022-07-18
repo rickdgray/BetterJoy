@@ -311,7 +311,21 @@ namespace EvenBetterJoy.Domain
             dump_calibration_data();
 
             // Bluetooth manual pairing
-            byte[] btmac_host = Program.btMAC.GetAddressBytes();
+
+            PhysicalAddress btMAC = new PhysicalAddress(new byte[] { 0, 0, 0, 0, 0, 0 });
+
+            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                // Get local BT host MAC
+                if (nic.NetworkInterfaceType != NetworkInterfaceType.FastEthernetFx
+                    && nic.NetworkInterfaceType != NetworkInterfaceType.Wireless80211
+                    && nic.Name.Split()[0] == "Bluetooth")
+                {
+                    btMAC = nic.GetPhysicalAddress();
+                }
+            }
+
+            byte[] btmac_host = btMAC.GetAddressBytes();
             // send host MAC and acquire Joycon MAC
             //byte[] reply = Subcommand(0x01, new byte[] { 0x01, btmac_host[5], btmac_host[4], btmac_host[3], btmac_host[2], btmac_host[1], btmac_host[0] }, 7, true);
             //byte[] LTKhash = Subcommand(0x01, new byte[] { 0x02 }, 1, true);

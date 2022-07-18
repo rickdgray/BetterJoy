@@ -1,31 +1,22 @@
 ﻿using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
+using EvenBetterJoy.Services;
 
 namespace EvenBetterJoy.Models
 {
     public class OutputControllerXbox360
     {
-        private IXbox360Controller controller;
+        private readonly IXbox360Controller controller;
         private OutputControllerXbox360InputState currentState;
 
         public delegate void Xbox360FeedbackReceivedEventHandler(Xbox360FeedbackReceivedEventArgs e);
 
         public event Xbox360FeedbackReceivedEventHandler FeedbackReceived;
 
-        public OutputControllerXbox360()
+        public OutputControllerXbox360(
+            IVirtualGamepadService virtualGamepadService)
         {
-            controller = Program.emClient.CreateXbox360Controller();
-            Init();
-        }
-
-        public OutputControllerXbox360(ushort vendor_id, ushort product_id)
-        {
-            controller = Program.emClient.CreateXbox360Controller(vendor_id, product_id);
-            Init();
-        }
-
-        private void Init()
-        {
+            controller = virtualGamepadService.Get().CreateXbox360Controller();
             controller.FeedbackReceived += FeedbackReceivedRcv;
             controller.AutoSubmitReport = false;
         }
@@ -37,25 +28,11 @@ namespace EvenBetterJoy.Models
 
         public void UpdateInput(OutputControllerXbox360InputState newState)
         {
-            if (currentState != newState)
+            if (currentState == newState)
             {
-                DoUpdateInput(newState);
+                return;
             }
-        }
 
-        public void Connect()
-        {
-            controller.Connect();
-            DoUpdateInput(new OutputControllerXbox360InputState());
-        }
-
-        public void Disconnect()
-        {
-            controller.Disconnect();
-        }
-
-        private void DoUpdateInput(OutputControllerXbox360InputState newState)
-        {
             controller.SetButtonState(Xbox360Button.LeftThumb, newState.thumb_stick_left);
             controller.SetButtonState(Xbox360Button.RightThumb, newState.thumb_stick_right);
 
@@ -87,6 +64,17 @@ namespace EvenBetterJoy.Models
             controller.SubmitReport();
 
             currentState = newState;
+        }
+
+        public void Connect()
+        {
+            controller.Connect();
+            UpdateInput(new OutputControllerXbox360InputState());
+        }
+
+        public void Disconnect()
+        {
+            controller.Disconnect();
         }
     }
 }

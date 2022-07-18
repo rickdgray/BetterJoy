@@ -8,6 +8,8 @@ namespace EvenBetterJoy.Services
 {
     public class HidGuardianService : IHidGuardianService
     {
+        private readonly string pid;
+
         private readonly ILogger logger;
         private readonly Settings settings;
 
@@ -17,12 +19,12 @@ namespace EvenBetterJoy.Services
         {
             this.logger = logger;
             this.settings = settings.Value;
+
+            pid = Environment.ProcessId.ToString();
         }
 
         public void Start()
         {
-            var pid = Environment.ProcessId.ToString();
-
             try
             {
                 var HidCerberusService = new ServiceController("HidCerberus Service");

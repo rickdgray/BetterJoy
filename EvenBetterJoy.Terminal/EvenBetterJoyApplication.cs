@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
-using System.Net.NetworkInformation;
 using EvenBetterJoy.Models;
 using EvenBetterJoy.Services;
 
@@ -8,24 +7,24 @@ namespace EvenBetterJoy.Terminal
 {
     public class EvenBetterJoyApplication : IEvenBetterJoyApplication
     {
-        public PhysicalAddress btMAC = new PhysicalAddress(new byte[] { 0, 0, 0, 0, 0, 0 });
-        public ViGEmClient emClient;
-        public JoyconManager mgr;
-
-        private readonly HttpClient client = new HttpClient();
-
         private readonly IHidGuardianService hidGuardianService;
+        private readonly IVirtualGamepadService virtualGamepadService;
+        private readonly IJoyconManagerService joyconManagerService;
         private readonly ICommunicationService communicationService;
         private readonly ILogger logger;
         private readonly Settings settings;
 
         public EvenBetterJoyApplication(
             IHidGuardianService hidGuardianService,
+            IVirtualGamepadService virtualGamepadService,
+            IJoyconManagerService joyconManagerService,
             ICommunicationService communicationService,
             ILogger<EvenBetterJoyApplication> logger,
             IOptions<Settings> settings)
         {
             this.hidGuardianService = hidGuardianService;
+            this.virtualGamepadService = virtualGamepadService;
+            this.joyconManagerService = joyconManagerService;
             this.communicationService = communicationService;
             this.logger = logger;
             this.settings = settings.Value;
@@ -41,33 +40,12 @@ namespace EvenBetterJoy.Terminal
 
             if (settings.ShowAsXInput || settings.ShowAsDS4)
             {
-                try
-                {
-                    // Manages emulated XInput
-                    emClient = new ViGEmClient();
-                }
-                catch
-                {
-                    logger.LogError("Could not start VigemBus. Make sure drivers are installed correctly.");
-                }
+                virtualGamepadService.Start();
             }
 
-            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
-            {
-                // Get local BT host MAC
-                if (nic.NetworkInterfaceType != NetworkInterfaceType.FastEthernetFx
-                    && nic.NetworkInterfaceType != NetworkInterfaceType.Wireless80211
-                    && nic.Name.Split()[0] == "Bluetooth")
-                {
-                    btMAC = nic.GetPhysicalAddress();
-                }
-            }
-
-            mgr = new JoyconManager();
-
-            mgr.Awake();
-            mgr.CheckForNewControllers();
-            mgr.Start();
+            joyconManagerService.Awake();
+            joyconManagerService.CheckForNewControllers();
+            joyconManagerService.Start();
 
             communicationService.Start();
 
@@ -82,15 +60,7 @@ namespace EvenBetterJoy.Terminal
             }
 
             communicationService.Stop();
-            mgr.OnApplicationQuit();
-        }
-
-        void SetupDlls()
-        {
-            var archPath = $"{AppDomain.CurrentDomain.BaseDirectory}";
-            var pathVariable = Environment.GetEnvironmentVariable("PATH");
-            pathVariable = $"{archPath};{pathVariable}";
-            Environment.SetEnvironmentVariable("PATH", pathVariable);
+            joyconManagerService.OnApplicationQuit();
         }
     }
 }
