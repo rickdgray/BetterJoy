@@ -1,11 +1,10 @@
 ﻿using System.Diagnostics;
 using System.Net.NetworkInformation;
 using System.Numerics;
-using EvenBetterJoy.Models;
 using Nefarius.ViGEm.Client.Targets.DualShock4;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 
-namespace EvenBetterJoy.Domain
+namespace EvenBetterJoy.Models
 {
     public class Joycon
     {

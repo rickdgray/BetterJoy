@@ -6,13 +6,13 @@ using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Timers;
+using System.Globalization;
 using EvenBetterJoy.Models;
 using EvenBetterJoy.Services;
-using System.Globalization;
 
-namespace EvenBetterJoy.Domain
+namespace EvenBetterJoy.Terminal
 {
-    public class JoyconManager
+    public class JoyconManager : IJoyconManager
     {
         public bool EnableIMU = true;
         public bool EnableLocalize = false;
@@ -273,7 +273,7 @@ namespace EvenBetterJoy.Domain
                                 // it wasn't connected in the first place, go figure
                             }
                         }
-                        
+
                         temp = null;
                     }
                 }
@@ -290,7 +290,7 @@ namespace EvenBetterJoy.Domain
                     {
                         joycon.out_xbox.Connect();
                     }
-                    
+
                     if (joycon.out_ds4 != null)
                     {
                         joycon.out_ds4.Connect();
@@ -312,7 +312,7 @@ namespace EvenBetterJoy.Domain
             }
         }
 
-        public void OnApplicationQuit()
+        public void Stop()
         {
             foreach ((_, Joycon joycon) in joycons)
             {

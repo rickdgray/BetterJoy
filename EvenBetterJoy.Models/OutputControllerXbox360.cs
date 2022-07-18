@@ -1,6 +1,5 @@
 ﻿using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
-using EvenBetterJoy.Services;
 
 namespace EvenBetterJoy.Models
 {
@@ -13,10 +12,9 @@ namespace EvenBetterJoy.Models
 
         public event Xbox360FeedbackReceivedEventHandler FeedbackReceived;
 
-        public OutputControllerXbox360(
-            IVirtualGamepadService virtualGamepadService)
+        public OutputControllerXbox360(ViGEmClient client)
         {
-            controller = virtualGamepadService.Get().CreateXbox360Controller();
+            controller = client.CreateXbox360Controller();
             controller.FeedbackReceived += FeedbackReceivedRcv;
             controller.AutoSubmitReport = false;
         }

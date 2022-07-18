@@ -7,24 +7,24 @@ namespace EvenBetterJoy.Terminal
 {
     public class EvenBetterJoyApplication : IEvenBetterJoyApplication
     {
+        private readonly IJoyconManager joyconManager;
         private readonly IHidGuardianService hidGuardianService;
         private readonly IVirtualGamepadService virtualGamepadService;
-        private readonly IJoyconManagerService joyconManagerService;
         private readonly ICommunicationService communicationService;
         private readonly ILogger logger;
         private readonly Settings settings;
 
         public EvenBetterJoyApplication(
+            IJoyconManager joyconManager,
             IHidGuardianService hidGuardianService,
             IVirtualGamepadService virtualGamepadService,
-            IJoyconManagerService joyconManagerService,
             ICommunicationService communicationService,
             ILogger<EvenBetterJoyApplication> logger,
             IOptions<Settings> settings)
         {
+            this.joyconManager = joyconManager;
             this.hidGuardianService = hidGuardianService;
             this.virtualGamepadService = virtualGamepadService;
-            this.joyconManagerService = joyconManagerService;
             this.communicationService = communicationService;
             this.logger = logger;
             this.settings = settings.Value;
@@ -43,8 +43,8 @@ namespace EvenBetterJoy.Terminal
                 virtualGamepadService.Start();
             }
 
-            joyconManagerService.CheckForNewControllers();
-            joyconManagerService.Start();
+            joyconManager.CheckForNewControllers();
+            joyconManager.Start();
 
             communicationService.Start();
 
@@ -59,7 +59,7 @@ namespace EvenBetterJoy.Terminal
             }
 
             communicationService.Stop();
-            joyconManagerService.OnApplicationQuit();
+            joyconManager.Stop();
         }
     }
 }

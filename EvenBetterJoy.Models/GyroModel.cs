@@ -1,18 +1,18 @@
-﻿namespace EvenBetterJoy.Services
+﻿namespace EvenBetterJoy.Models
 {
-    public class GyroService : IGyroService
+    public class GyroModel
     {
         public float SamplePeriod { get; set; }
         public float Beta { get; set; }
         public float[] Quaternion { get; set; }
-        public float[] old_pitchYawRoll { get; set; }
+        public float[] OldPitchYawRoll { get; set; }
 
-        public GyroService(float samplePeriod, float beta)
+        public GyroModel(float samplePeriod, float beta)
         {
             SamplePeriod = samplePeriod;
             Beta = beta;
             Quaternion = new float[] { 1f, 0f, 0f, 0f };
-            old_pitchYawRoll = new float[] { 0f, 0f, 0f };
+            OldPitchYawRoll = new float[] { 0f, 0f, 0f };
         }
 
         public void Update(float gx, float gy, float gz, float ax, float ay, float az)
@@ -40,8 +40,15 @@
 
             // Normalise accelerometer measurement
             norm = (float)Math.Sqrt(ax * ax + ay * ay + az * az);
-            if (norm == 0f) return; // handle NaN
-            norm = 1 / norm;        // use reciprocal for division
+
+            // handle NaN
+            if (norm == 0f)
+            {
+                return;
+            }
+
+            // use reciprocal for division
+            norm = 1 / norm;
             ax *= norm;
             ay *= norm;
             az *= norm;
@@ -51,6 +58,7 @@
             s2 = _4q2 * q4q4 - _2q4 * ax + 4f * q1q1 * q2 - _2q1 * ay - _4q2 + _8q2 * q2q2 + _8q2 * q3q3 + _4q2 * az;
             s3 = 4f * q1q1 * q3 + _2q1 * ax + _4q3 * q4q4 - _2q4 * ay - _4q3 + _8q3 * q2q2 + _8q3 * q3q3 + _4q3 * az;
             s4 = 4f * q2q2 * q4 - _2q2 * ax + 4f * q3q3 * q4 - _2q3 * ay;
+            
             // normalise step magnitude
             norm = 1f / (float)Math.Sqrt(s1 * s1 + s2 * s2 + s3 * s3 + s4 * s4);
             s1 *= norm;
@@ -69,6 +77,7 @@
             q2 += qDot2 * SamplePeriod;
             q3 += qDot3 * SamplePeriod;
             q4 += qDot4 * SamplePeriod;
+            
             // normalise quaternion
             norm = 1f / (float)Math.Sqrt(q1 * q1 + q2 * q2 + q3 * q3 + q4 * q4);
             Quaternion[0] = q1 * norm;
@@ -88,8 +97,8 @@
 
             float[] returnAngles = new float[6];
             Array.Copy(pitchYawRoll, returnAngles, 3);
-            Array.Copy(old_pitchYawRoll, 0, returnAngles, 3, 3);
-            old_pitchYawRoll = pitchYawRoll;
+            Array.Copy(OldPitchYawRoll, 0, returnAngles, 3, 3);
+            OldPitchYawRoll = pitchYawRoll;
 
             return returnAngles;
         }
