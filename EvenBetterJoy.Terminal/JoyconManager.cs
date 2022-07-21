@@ -70,10 +70,10 @@ namespace EvenBetterJoy.Terminal
             {
                 if (joycon.state == ControllerState.DROPPED)
                 {
-                    if (joycon.other != null)
+                    if (joycon.Other != null)
                     {
                         // The other of the other is the joycon itself
-                        joycon.other.other = null;
+                        joycon.Other.Other = null;
                     }
 
                     joycon.Detach(true);
@@ -235,7 +235,7 @@ namespace EvenBetterJoy.Terminal
                     // Do not attach two controllers if they are either:
                     // - Not a Joycon
                     // - Already attached to another Joycon (that isn't itself)
-                    if (joycon.isPro || (joycon.other != null && joycon.other != joycon))
+                    if (joycon.isPro || (joycon.Other != null && joycon.Other != joycon))
                     {
                         continue;
                     }
@@ -246,10 +246,10 @@ namespace EvenBetterJoy.Terminal
                     {
                         temp = joycon;
                     }
-                    else if (temp.isLeft != joycon.isLeft && joycon.other == null)
+                    else if (temp.isLeft != joycon.isLeft && joycon.Other == null)
                     {
-                        temp.other = joycon;
-                        joycon.other = temp;
+                        temp.Other = joycon;
+                        joycon.Other = temp;
 
                         if (temp.out_xbox != null)
                         {
@@ -298,6 +298,7 @@ namespace EvenBetterJoy.Terminal
 
                     try
                     {
+                        deviceService.SetDeviceNonblocking(joycon.handle, 0);
                         joycon.Attach();
                     }
                     catch

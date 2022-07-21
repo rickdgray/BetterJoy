@@ -34,5 +34,7 @@ namespace EvenBetterJoy.Models
         public int Port { get; set; }
         public bool HomeLedOn { get; set; }
         public bool AutoPowerOff { get; set; }
+        public float AHRS_beta { get; set; }
+        public bool ShakeInputEnabled { get; set; }
     }
 }

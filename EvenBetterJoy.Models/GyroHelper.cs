@@ -1,13 +1,13 @@
 ﻿namespace EvenBetterJoy.Models
 {
-    public class GyroModel
+    public class GyroHelper
     {
         public float SamplePeriod { get; set; }
         public float Beta { get; set; }
         public float[] Quaternion { get; set; }
         public float[] OldPitchYawRoll { get; set; }
 
-        public GyroModel(float samplePeriod, float beta)
+        public GyroHelper(float samplePeriod, float beta)
         {
             SamplePeriod = samplePeriod;
             Beta = beta;

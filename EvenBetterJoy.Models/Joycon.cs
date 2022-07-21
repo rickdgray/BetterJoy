@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Net.NetworkInformation;
 using System.Numerics;
+using Microsoft.Extensions.Logging;
 using Nefarius.ViGEm.Client.Targets.DualShock4;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 
@@ -12,8 +13,9 @@ namespace EvenBetterJoy.Models
         public bool isPro = false;
         public bool isSnes = false;
         bool isUSB = false;
+        
         private Joycon _other = null;
-        public Joycon other
+        public Joycon Other
         {
             get
             {
@@ -45,8 +47,9 @@ namespace EvenBetterJoy.Models
         
         public bool isLeft;
         
-        public ControllerState state;
-        
+        private ControllerState state;
+        private ControllerDebugMode debugMode;
+
         private bool[] buttons_down = new bool[20];
         private bool[] buttons_up = new bool[20];
         private bool[] buttons = new bool[20];
@@ -70,7 +73,7 @@ namespace EvenBetterJoy.Models
         private ushort deadzone2;
         private ushort[] stick2_precal = { 0, 0 };
 
-        private bool stop_polling = true;
+        private bool polling = false;
         private bool imu_enabled = false;
         private short[] acc_r = { 0, 0, 0 };
         private short[] acc_neutral = { 0, 0, 0 };
@@ -152,13 +155,13 @@ namespace EvenBetterJoy.Models
         }
 
         public string serial_number;
-        bool thirdParty = false;
 
         private float[] activeData;
-        static float AHRS_beta = float.Parse(ConfigurationManager.AppSettings["AHRS_beta"]);
-        private MadgwickAHRS AHRS = new MadgwickAHRS(0.005f, AHRS_beta); // for getting filtered Euler angles of rotation; 5ms sampling rate
+        private GyroHelper gyroHelper = new GyroHelper(0.005f, AHRS_beta); // for getting filtered Euler angles of rotation; 5ms sampling rate
 
-        public Joycon(IntPtr handle_, bool imu, bool localize, float alpha, bool left, string path, string serialNum, int id = 0, bool isPro = false, bool isSnes = false, bool thirdParty = false)
+        private readonly Settings settings;
+        private readonly ILogger logger;
+        public Joycon(IntPtr handle_, bool imu, bool localize, float alpha, bool left, string path, string serialNum, int id = 0, bool isPro = false, bool isSnes = false)
         {
             serial_number = serialNum;
             activeData = new float[6];
@@ -176,7 +179,6 @@ namespace EvenBetterJoy.Models
             this.isPro = isPro || isSnes;
             this.isSnes = isSnes;
             isUSB = serialNum == "000000000001";
-            this.thirdParty = thirdParty;
 
             this.path = path;
 
@@ -186,82 +188,71 @@ namespace EvenBetterJoy.Models
             {
                 out_xbox = new OutputControllerXbox360();
                 if (toRumble)
+                {
                     out_xbox.FeedbackReceived += ReceiveRumble;
+                }
             }
 
             if (showAsDS4)
             {
                 out_ds4 = new OutputControllerDualShock4();
                 if (toRumble)
+                {
                     out_ds4.FeedbackReceived += Ds4_FeedbackReceived;
+                }
             }
-        }
-
-        public void getActiveData()
-        {
-            activeData = form.activeCaliData(serial_number);
         }
 
         public void ReceiveRumble(Xbox360FeedbackReceivedEventArgs e)
         {
-            DebugPrint("Rumble data Recived: XInput", DebugType.RUMBLE);
+            DebugPrint("Rumble data Recived: XInput", ControllerDebugMode.RUMBLE);
             SetRumble(lowFreq, highFreq, (float)Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
 
-            if (other != null && other != this)
-                other.SetRumble(lowFreq, highFreq, (float)Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
+            if (Other != null && Other != this)
+            {
+                Other.SetRumble(lowFreq, highFreq, (float)Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
+            }
         }
 
         public void Ds4_FeedbackReceived(DualShock4FeedbackReceivedEventArgs e)
         {
-            DebugPrint("Rumble data Recived: DS4", DebugType.RUMBLE);
+            DebugPrint("Rumble data Recived: DS4", ControllerDebugMode.RUMBLE);
             SetRumble(lowFreq, highFreq, (float)Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
 
-            if (other != null && other != this)
-                other.SetRumble(lowFreq, highFreq, (float)Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
-        }
-
-        public void DebugPrint(String s, DebugType d)
-        {
-            if (debug_type == DebugType.NONE) return;
-            if (d == DebugType.ALL || d == debug_type || debug_type == DebugType.ALL)
+            if (Other != null && Other != this)
             {
-                form.AppendTextBox(s + "\r\n");
+                Other.SetRumble(lowFreq, highFreq, (float)Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
             }
         }
-        public bool GetButtonDown(Button b)
+
+        public void DebugPrint(string message, ControllerDebugMode debugMode)
         {
-            return buttons_down[(int)b];
+            // if joycon debug mode is none, just force no messages
+            if (this.debugMode == ControllerDebugMode.NONE)
+            {
+                return;
+            }
+            
+            // otherwise, if message is mode all or of the same type, print
+            if (debugMode == ControllerDebugMode.ALL || this.debugMode == debugMode || this.debugMode == ControllerDebugMode.ALL)
+            {
+                logger.LogDebug(message);
+            }
         }
-        public bool GetButton(Button b)
-        {
-            return buttons[(int)b];
-        }
-        public bool GetButtonUp(Button b)
-        {
-            return buttons_up[(int)b];
-        }
-        public float[] GetStick()
-        {
-            return stick;
-        }
-        public float[] GetStick2()
-        {
-            return stick2;
-        }
+        
         public Vector3 GetGyro()
         {
             return gyr_g;
         }
+        
         public Vector3 GetAccel()
         {
             return acc_g;
         }
+        
         public int Attach()
         {
-            state = state_.ATTACHED;
-
-            // Make sure command is received
-            HidApi.HidSetNonblocking(handle, 0);
+            state = ControllerState.ATTACHED;
 
             byte[] a = { 0x0 };
 
@@ -269,7 +260,7 @@ namespace EvenBetterJoy.Models
             if (isUSB)
             {
                 a = Enumerable.Repeat((byte)0, 64).ToArray();
-                form.AppendTextBox("Using USB.\r\n");
+                logger.LogInformation("Using USB.");
 
                 a[0] = 0x80;
                 a[1] = 0x1;
@@ -277,9 +268,11 @@ namespace EvenBetterJoy.Models
                 HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
 
                 if (a[0] != 0x81)
-                { // can occur when USB connection isn't closed properly
-                    form.AppendTextBox("Resetting USB connection.\r\n");
+                {
+                    // can occur when USB connection isn't closed properly
+                    logger.LogWarning("Resetting USB connection.");
                     Subcommand(0x06, new byte[] { 0x01 }, 1);
+                    //TODO: verify this exception is needed
                     throw new Exception("reset_usb");
                 }
 
@@ -290,29 +283,33 @@ namespace EvenBetterJoy.Models
 
                 // USB Pairing
                 a = Enumerable.Repeat((byte)0, 64).ToArray();
-                a[0] = 0x80; a[1] = 0x2; // Handshake
+
+                // Handshake
+                a[0] = 0x80; a[1] = 0x2;
                 HidApi.HidWrite(handle, a, new UIntPtr(2));
                 HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
 
-                a[0] = 0x80; a[1] = 0x3; // 3Mbit baud rate
+                // 3Mbit baud rate
+                a[0] = 0x80; a[1] = 0x3;
                 HidApi.HidWrite(handle, a, new UIntPtr(2));
                 HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
 
-                a[0] = 0x80; a[1] = 0x2; // Handshake at new baud rate
+                // Handshake at new baud rate
+                a[0] = 0x80; a[1] = 0x2;
                 HidApi.HidWrite(handle, a, new UIntPtr(2));
                 HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
 
-                a[0] = 0x80; a[1] = 0x4; // Prevent HID timeout
-                HidApi.HidWrite(handle, a, new UIntPtr(2)); // doesn't actually prevent timout...
+                // Prevent HID timeout
+                a[0] = 0x80; a[1] = 0x4;
+                HidApi.HidWrite(handle, a, new UIntPtr(2));
                 HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
 
             }
+            
             dump_calibration_data();
 
             // Bluetooth manual pairing
-
-            PhysicalAddress btMAC = new PhysicalAddress(new byte[] { 0, 0, 0, 0, 0, 0 });
-
+            var btMAC = new PhysicalAddress(new byte[] { 0, 0, 0, 0, 0, 0 });
             foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
             {
                 // Get local BT host MAC
@@ -334,11 +331,11 @@ namespace EvenBetterJoy.Models
             BlinkHomeLight();
             SetLEDByPlayerNum(PadId);
 
-            Subcommand(0x40, new byte[] { (imu_enabled ? (byte)0x1 : (byte)0x0) }, 1);
+            Subcommand(0x40, new byte[] { imu_enabled ? (byte)0x1 : (byte)0x0 }, 1);
             Subcommand(0x48, new byte[] { 0x01 }, 1);
 
             Subcommand(0x3, new byte[] { 0x30 }, 1);
-            DebugPrint("Done with init.", DebugType.COMMS);
+            DebugPrint("Done with init.", ControllerDebugMode.COMMS);
 
             HidApi.HidSetNonblocking(handle, 1);
 
@@ -351,9 +348,7 @@ namespace EvenBetterJoy.Models
         }
 
         public void BlinkHomeLight()
-        { // do not call after initial setup
-            if (thirdParty)
-                return;
+        {
             byte[] a = Enumerable.Repeat((byte)0xFF, 25).ToArray();
             a[0] = 0x18;
             a[1] = 0x01;
@@ -362,8 +357,6 @@ namespace EvenBetterJoy.Models
 
         public void SetHomeLight(bool on)
         {
-            if (thirdParty)
-                return;
             byte[] a = Enumerable.Repeat((byte)0xFF, 25).ToArray();
             if (on)
             {
@@ -386,57 +379,26 @@ namespace EvenBetterJoy.Models
 
         public void PowerOff()
         {
-            if (state > state_.DROPPED)
+            if (state > ControllerState.DROPPED)
             {
                 HidApi.HidSetNonblocking(handle, 0);
                 SetHCIState(0x00);
-                state = state_.DROPPED;
+                state = ControllerState.DROPPED;
             }
         }
 
         private void BatteryChanged()
-        { // battery changed level
-            foreach (var v in form.con)
-            {
-                if (v.Tag == this)
-                {
-                    switch (battery)
-                    {
-                        case 4:
-                            v.BackColor = System.Drawing.Color.FromArgb(0xAA, System.Drawing.Color.Green);
-                            break;
-                        case 3:
-                            v.BackColor = System.Drawing.Color.FromArgb(0xAA, System.Drawing.Color.Green);
-                            break;
-                        case 2:
-                            v.BackColor = System.Drawing.Color.FromArgb(0xAA, System.Drawing.Color.GreenYellow);
-                            break;
-                        case 1:
-                            v.BackColor = System.Drawing.Color.FromArgb(0xAA, System.Drawing.Color.Orange);
-                            break;
-                        default:
-                            v.BackColor = System.Drawing.Color.FromArgb(0xAA, System.Drawing.Color.Red);
-                            break;
-                    }
-                }
-            }
-
+        {
             if (battery <= 1)
             {
-                form.notifyIcon.Visible = true;
-                form.notifyIcon.BalloonTipText = String.Format("Controller {0} ({1}) - low battery notification!", PadId, isPro ? "Pro Controller" : (isSnes ? "SNES Controller" : (isLeft ? "Joycon Left" : "Joycon Right")));
-                form.notifyIcon.ShowBalloonTip(0);
+                //TODO: figure out how to alert the user
+                //string.Format("Controller {0} ({1}) - low battery notification!", PadId, isPro ? "Pro Controller" : (isSnes ? "SNES Controller" : (isLeft ? "Joycon Left" : "Joycon Right")));
             }
-        }
-
-        public void SetFilterCoeff(float a)
-        {
-            filterweight = a;
         }
 
         public void Detach(bool close = false)
         {
-            stop_polling = true;
+            polling = false;
 
             if (out_xbox != null)
             {
@@ -448,27 +410,30 @@ namespace EvenBetterJoy.Models
                 out_ds4.Disconnect();
             }
 
-            if (state > state_.NO_JOYCONS)
+            if (state > ControllerState.NO_JOYCONS)
             {
                 HidApi.HidSetNonblocking(handle, 0);
 
-                // Subcommand(0x40, new byte[] { 0x0 }, 1); // disable IMU sensor
+                //Subcommand(0x40, new byte[] { 0x0 }, 1); // disable IMU sensor
                 //Subcommand(0x48, new byte[] { 0x0 }, 1); // Would turn off rumble?
 
                 if (isUSB)
                 {
+                    // Allow device to talk to BT again
                     byte[] a = Enumerable.Repeat((byte)0, 64).ToArray();
-                    a[0] = 0x80; a[1] = 0x5; // Allow device to talk to BT again
+                    a[0] = 0x80; a[1] = 0x5;
                     HidApi.HidWrite(handle, a, new UIntPtr(2));
-                    a[0] = 0x80; a[1] = 0x6; // Allow device to talk to BT again
+                    a[0] = 0x80; a[1] = 0x6;
                     HidApi.HidWrite(handle, a, new UIntPtr(2));
                 }
             }
-            if (close || state > state_.DROPPED)
+            
+            if (close || state > ControllerState.DROPPED)
             {
                 HidApi.HidClose(handle);
             }
-            state = state_.NOT_ATTACHED;
+            
+            state = ControllerState.NOT_ATTACHED;
         }
 
         private byte ts_en;
@@ -476,9 +441,9 @@ namespace EvenBetterJoy.Models
         {
             if (handle == IntPtr.Zero) return -2;
             byte[] raw_buf = new byte[report_len];
-            int ret = HidApi.HidReadTimeout(handle, raw_buf, new UIntPtr(report_len), 5);
+            int inboundData = HidApi.HidReadTimeout(handle, raw_buf, new UIntPtr(report_len), 5);
 
-            if (ret > 0)
+            if (inboundData > 0)
             {
                 // Process packets as soon as they come
                 for (int n = 0; n < 3; n++)
@@ -488,7 +453,8 @@ namespace EvenBetterJoy.Models
                     byte lag = (byte)Math.Max(0, raw_buf[1] - ts_en - 3);
                     if (n == 0)
                     {
-                        Timestamp += (ulong)lag * 5000; // add lag once
+                        // add lag once
+                        Timestamp += (ulong)lag * 5000;
                         ProcessButtonsAndStick(raw_buf);
 
                         // process buttons here to have them affect DS4
@@ -503,7 +469,9 @@ namespace EvenBetterJoy.Models
 
                     packetCounter++;
                     if (Program.server != null)
+                    {
                         Program.server.NewReportIncoming(this);
+                    }
 
                     if (out_ds4 != null)
                     {
@@ -513,7 +481,7 @@ namespace EvenBetterJoy.Models
                         }
                         catch (Exception e)
                         {
-                            // ignore /shrug
+                            logger.LogTrace(e.Message);
                         }
                     }
                 }
@@ -527,28 +495,31 @@ namespace EvenBetterJoy.Models
                     }
                     catch (Exception e)
                     {
-                        // ignore /shrug
+                        logger.LogTrace(e.Message);
                     }
                 }
 
-
+                //TODO: why filter out snes only?
                 if (ts_en == raw_buf[1] && !isSnes)
                 {
-                    form.AppendTextBox("Duplicate timestamp enqueued.\r\n");
-                    DebugPrint(string.Format("Duplicate timestamp enqueued. TS: {0:X2}", ts_en), DebugType.THREADING);
+                    logger.LogTrace("Duplicate timestamp enqueued.");
+                    DebugPrint(string.Format("Duplicate timestamp enqueued. TS: {0:X2}", ts_en), ControllerDebugMode.THREADING);
                 }
+                
                 ts_en = raw_buf[1];
-                DebugPrint(string.Format("Enqueue. Bytes read: {0:D}. Timestamp: {1:X2}", ret, raw_buf[1]), DebugType.THREADING);
+                DebugPrint(string.Format("Enqueue. Bytes read: {0:D}. Timestamp: {1:X2}", inboundData, raw_buf[1]), ControllerDebugMode.THREADING);
             }
-            return ret;
+            
+            return inboundData;
         }
 
-        private readonly Stopwatch shakeTimer = Stopwatch.StartNew(); //Setup a timer for measuring shake in milliseconds
+        //Setup a timer for measuring shake in milliseconds
+        private readonly Stopwatch shakeTimer = Stopwatch.StartNew();
         private long shakedTime = 0;
         private bool hasShaked;
         void DetectShake()
         {
-            if (form.shakeInputEnabled)
+            if (shakeInputEnabled)
             {
                 long currentShakeTime = shakeTimer.ElapsedMilliseconds;
 
@@ -671,15 +642,15 @@ namespace EvenBetterJoy.Models
 
         private void DoThingsWithButtons()
         {
-            int powerOffButton = (int)((isPro || !isLeft || other != null) ? Button.HOME : Button.CAPTURE);
+            int powerOffButton = (int)((isPro || !isLeft || Other != null) ? Button.HOME : Button.CAPTURE);
 
             long timestamp = Stopwatch.GetTimestamp();
             if (HomeLongPowerOff && buttons[powerOffButton])
             {
                 if ((timestamp - buttons_down_timestamp[powerOffButton]) / 10000 > 2000.0)
                 {
-                    if (other != null)
-                        other.PowerOff();
+                    if (Other != null)
+                        Other.PowerOff();
 
                     PowerOff();
                     return;
@@ -706,8 +677,8 @@ namespace EvenBetterJoy.Models
             {
                 if ((timestamp - inactivity) / 10000 > PowerOffInactivityMins * 60 * 1000)
                 {
-                    if (other != null)
-                        other.PowerOff();
+                    if (Other != null)
+                        Other.PowerOff();
 
                     PowerOff();
                     return;
@@ -753,14 +724,14 @@ namespace EvenBetterJoy.Models
             }
 
             // Filtered IMU data
-            this.cur_rotation = AHRS.GetEulerAngles();
+            this.cur_rotation = gyroHelper.GetEulerAngles();
             float dt = 0.015f; // 15ms
 
-            if (GyroAnalogSliders && (other != null || isPro))
+            if (GyroAnalogSliders && (Other != null || isPro))
             {
                 Button leftT = isLeft ? Button.SHOULDER_2 : Button.SHOULDER2_2;
                 Button rightT = isLeft ? Button.SHOULDER2_2 : Button.SHOULDER_2;
-                Joycon left = isLeft ? this : (isPro ? this : this.other); Joycon right = !isLeft ? this : (isPro ? this : this.other);
+                Joycon left = isLeft ? this : (isPro ? this : this.Other); Joycon right = !isLeft ? this : (isPro ? this : this.Other);
 
                 int ldy, rdy;
                 if (UseFilteredIMU)
@@ -799,14 +770,14 @@ namespace EvenBetterJoy.Models
                 int i = Int32.Parse(res_val.Substring(4));
                 if (GyroHoldToggle)
                 {
-                    if (buttons_down[i] || (other != null && other.buttons_down[i]))
+                    if (buttons_down[i] || (Other != null && Other.buttons_down[i]))
                         active_gyro = true;
-                    else if (buttons_up[i] || (other != null && other.buttons_up[i]))
+                    else if (buttons_up[i] || (Other != null && Other.buttons_up[i]))
                         active_gyro = false;
                 }
                 else
                 {
-                    if (buttons_down[i] || (other != null && other.buttons_down[i]))
+                    if (buttons_down[i] || (Other != null && Other.buttons_down[i]))
                         active_gyro = !active_gyro;
                 }
             }
@@ -833,7 +804,7 @@ namespace EvenBetterJoy.Models
                     control_stick[1] = Math.Max(-1.0f, Math.Min(1.0f, control_stick[1] / GyroStickReduction + dy));
                 }
             }
-            else if (extraGyroFeature == "mouse" && (isPro || (other == null) || (other != null && (Boolean.Parse(ConfigurationManager.AppSettings["GyroMouseLeftHanded"]) ? isLeft : !isLeft))))
+            else if (extraGyroFeature == "mouse" && (isPro || (Other == null) || (Other != null && (Boolean.Parse(ConfigurationManager.AppSettings["GyroMouseLeftHanded"]) ? isLeft : !isLeft))))
             {
                 // gyro data is in degrees/s
                 if (Config.GetValue("active_gyro") == "0" || active_gyro)
@@ -859,7 +830,7 @@ namespace EvenBetterJoy.Models
                 if (res_val.StartsWith("joy_"))
                 {
                     int i = Int32.Parse(res_val.Substring(4));
-                    if (buttons_down[i] || (other != null && other.buttons_down[i]))
+                    if (buttons_down[i] || (Other != null && Other.buttons_down[i]))
                         WindowsInput.Simulate.Events().MoveTo(Screen.PrimaryScreen.Bounds.Width / 2, Screen.PrimaryScreen.Bounds.Height / 2).Invoke();
                 }
             }
@@ -868,9 +839,9 @@ namespace EvenBetterJoy.Models
         private Thread PollThreadObj;
         private void Poll()
         {
-            stop_polling = false;
+            polling = true;
             int attempts = 0;
-            while (!stop_polling & state > state_.NO_JOYCONS)
+            while (polling & state > state_.NO_JOYCONS)
             {
                 if (rumble_obj.queue.Count > 0)
                 {
@@ -938,17 +909,17 @@ namespace EvenBetterJoy.Models
                 }
 
                 // Read other Joycon's sticks
-                if (isLeft && other != null && other != this)
+                if (isLeft && Other != null && Other != this)
                 {
                     stick2 = otherStick;
-                    other.otherStick = stick;
+                    Other.otherStick = stick;
                 }
 
-                if (!isLeft && other != null && other != this)
+                if (!isLeft && Other != null && Other != this)
                 {
                     Array.Copy(stick, stick2, 2);
                     stick = otherStick;
-                    other.otherStick = stick2;
+                    Other.otherStick = stick2;
                 }
             }
             //
@@ -991,27 +962,27 @@ namespace EvenBetterJoy.Models
                     buttons[(int)Button.SHOULDER2_2] = (report_buf[3 + (!isLeft ? 2 : 0)] & 0x80) != 0;
                 }
 
-                if (other != null && other != this)
+                if (Other != null && Other != this)
                 {
-                    buttons[(int)(Button.B)] = other.buttons[(int)Button.DPAD_DOWN];
-                    buttons[(int)(Button.A)] = other.buttons[(int)Button.DPAD_RIGHT];
-                    buttons[(int)(Button.X)] = other.buttons[(int)Button.DPAD_UP];
-                    buttons[(int)(Button.Y)] = other.buttons[(int)Button.DPAD_LEFT];
+                    buttons[(int)(Button.B)] = Other.buttons[(int)Button.DPAD_DOWN];
+                    buttons[(int)(Button.A)] = Other.buttons[(int)Button.DPAD_RIGHT];
+                    buttons[(int)(Button.X)] = Other.buttons[(int)Button.DPAD_UP];
+                    buttons[(int)(Button.Y)] = Other.buttons[(int)Button.DPAD_LEFT];
 
-                    buttons[(int)Button.STICK2] = other.buttons[(int)Button.STICK];
-                    buttons[(int)Button.SHOULDER2_1] = other.buttons[(int)Button.SHOULDER_1];
-                    buttons[(int)Button.SHOULDER2_2] = other.buttons[(int)Button.SHOULDER_2];
+                    buttons[(int)Button.STICK2] = Other.buttons[(int)Button.STICK];
+                    buttons[(int)Button.SHOULDER2_1] = Other.buttons[(int)Button.SHOULDER_1];
+                    buttons[(int)Button.SHOULDER2_2] = Other.buttons[(int)Button.SHOULDER_2];
                 }
 
-                if (isLeft && other != null && other != this)
+                if (isLeft && Other != null && Other != this)
                 {
-                    buttons[(int)Button.HOME] = other.buttons[(int)Button.HOME];
-                    buttons[(int)Button.PLUS] = other.buttons[(int)Button.PLUS];
+                    buttons[(int)Button.HOME] = Other.buttons[(int)Button.HOME];
+                    buttons[(int)Button.PLUS] = Other.buttons[(int)Button.PLUS];
                 }
 
-                if (!isLeft && other != null && other != this)
+                if (!isLeft && Other != null && Other != this)
                 {
-                    buttons[(int)Button.MINUS] = other.buttons[(int)Button.MINUS];
+                    buttons[(int)Button.MINUS] = Other.buttons[(int)Button.MINUS];
                 }
 
                 long timestamp = Stopwatch.GetTimestamp();
@@ -1118,7 +1089,7 @@ namespace EvenBetterJoy.Models
                     }
                 }
 
-                if (other == null && !isPro)
+                if (Other == null && !isPro)
                 { // single joycon mode; Z do not swap, rest do
                     if (isLeft)
                     {
@@ -1142,7 +1113,7 @@ namespace EvenBetterJoy.Models
 
                 // Update rotation Quaternion
                 float deg_to_rad = 0.0174533f;
-                AHRS.Update(gyr_g.X * deg_to_rad, gyr_g.Y * deg_to_rad, gyr_g.Z * deg_to_rad, acc_g.X, acc_g.Y, acc_g.Z);
+                gyroHelper.Update(gyr_g.X * deg_to_rad, gyr_g.Y * deg_to_rad, gyr_g.Z * deg_to_rad, acc_g.X, acc_g.Y, acc_g.Z);
             }
         }
 
@@ -1400,7 +1371,7 @@ namespace EvenBetterJoy.Models
             var isPro = input.isPro;
             var isLeft = input.isLeft;
             var isSnes = input.isSnes;
-            var other = input.other;
+            var other = input.Other;
             var GyroAnalogSliders = input.GyroAnalogSliders;
 
             var buttons = input.buttons;
@@ -1518,7 +1489,7 @@ namespace EvenBetterJoy.Models
             var isPro = input.isPro;
             var isLeft = input.isLeft;
             var isSnes = input.isSnes;
-            var other = input.other;
+            var other = input.Other;
             var GyroAnalogSliders = input.GyroAnalogSliders;
 
             var buttons = input.buttons;
