@@ -34,7 +34,30 @@ namespace EvenBetterJoy.Models
         public int Port { get; set; }
         public bool HomeLedOn { get; set; }
         public bool AutoPowerOff { get; set; }
-        public float AHRS_beta { get; set; }
+        public float AhrsBeta { get; set; }
         public bool ShakeInputEnabled { get; set; }
+        public bool DragToggle { get; set; }
+        public bool HomeLongPowerOff { get; set; }
+        public long PowerOffInactivity { get; set; }
+        public bool ChangeOrientationDoubleClick { get; set; }
+        public string GyroToJoyOrMouse { get; set; }
+        public bool UseFilteredIMU { get; set; }
+        public int GyroMouseSensitivityX { get; set; }
+        public int GyroMouseSensitivityY { get; set; }
+        public float GyroStickSensitivityX { get; set; }
+        public float GyroStickSensitivityY { get; set; }
+        public float GyroStickReduction { get; set; }
+        public bool GyroHoldToggle { get; set; }
+        public bool GyroAnalogSliders { get; set; }
+        public int GyroAnalogSensitivity { get; set; }
+        public bool GyroMouseLeftHanded { get; set; }
+        public bool SwapAB { get; set; }
+        public bool SwapXY { get; set; }
+        public string acc_sensiti { get; set; }
+        public string gyr_sensiti { get; set; }
+        public string stick_cal { get; set; }
+        public ushort deadzone { get; set; }
+        public string stick2_cal { get; set; }
+        public ushort deadzone2 { get; set; }
     }
 }
