@@ -6,7 +6,7 @@ using EvenBetterJoy.Models;
 
 namespace EvenBetterJoy.Terminal
 {
-    internal sealed class Program
+    public class Program
     {
         static async Task Main(string[] args)
         {
@@ -24,10 +24,11 @@ namespace EvenBetterJoy.Terminal
                     services
                         .AddHostedService<ApplicationHostedService>()
                         .AddTransient<IEvenBetterJoyApplication, EvenBetterJoyApplication>()
+                        .AddSingleton<IJoyconManager, JoyconManager>()
                         .AddSingleton<IVirtualGamepadService, VirtualGamepadService>()
+                        .AddSingleton<IHidGuardianService, HidGuardianService>()
                         .AddSingleton<ICommunicationService, CommunicationService>()
                         .AddSingleton<IDeviceService, DeviceService>()
-                        .AddSingleton<IGyroService, GyroService>()
                         .AddSingleton<ISettingsService, SettingsService>();
 
                     services

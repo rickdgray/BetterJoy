@@ -1,4 +1,6 @@
-![EvenBetterJoy](title.png)
+<p align="center">
+  <img src="title.png">
+</p>
 
 The famous [BetterJoy](https://github.com/Davidobot/BetterJoy), but even better!
 

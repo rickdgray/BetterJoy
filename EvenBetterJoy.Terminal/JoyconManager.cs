@@ -6,13 +6,13 @@ using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Timers;
+using System.Globalization;
 using EvenBetterJoy.Models;
 using EvenBetterJoy.Services;
-using System.Globalization;
 
-namespace EvenBetterJoy.Domain
+namespace EvenBetterJoy.Terminal
 {
-    public class JoyconManager
+    public class JoyconManager : IJoyconManager
     {
         public bool EnableIMU = true;
         public bool EnableLocalize = false;
@@ -70,10 +70,10 @@ namespace EvenBetterJoy.Domain
             {
                 if (joycon.state == ControllerState.DROPPED)
                 {
-                    if (joycon.other != null)
+                    if (joycon.Other != null)
                     {
                         // The other of the other is the joycon itself
-                        joycon.other.other = null;
+                        joycon.Other.Other = null;
                     }
 
                     joycon.Detach(true);
@@ -235,7 +235,7 @@ namespace EvenBetterJoy.Domain
                     // Do not attach two controllers if they are either:
                     // - Not a Joycon
                     // - Already attached to another Joycon (that isn't itself)
-                    if (joycon.isPro || (joycon.other != null && joycon.other != joycon))
+                    if (joycon.isPro || (joycon.Other != null && joycon.Other != joycon))
                     {
                         continue;
                     }
@@ -246,10 +246,10 @@ namespace EvenBetterJoy.Domain
                     {
                         temp = joycon;
                     }
-                    else if (temp.isLeft != joycon.isLeft && joycon.other == null)
+                    else if (temp.isLeft != joycon.isLeft && joycon.Other == null)
                     {
-                        temp.other = joycon;
-                        joycon.other = temp;
+                        temp.Other = joycon;
+                        joycon.Other = temp;
 
                         if (temp.out_xbox != null)
                         {
@@ -273,7 +273,7 @@ namespace EvenBetterJoy.Domain
                                 // it wasn't connected in the first place, go figure
                             }
                         }
-                        
+
                         temp = null;
                     }
                 }
@@ -290,7 +290,7 @@ namespace EvenBetterJoy.Domain
                     {
                         joycon.out_xbox.Connect();
                     }
-                    
+
                     if (joycon.out_ds4 != null)
                     {
                         joycon.out_ds4.Connect();
@@ -298,6 +298,7 @@ namespace EvenBetterJoy.Domain
 
                     try
                     {
+                        deviceService.SetDeviceNonblocking(joycon.handle, 0);
                         joycon.Attach();
                     }
                     catch
@@ -312,7 +313,7 @@ namespace EvenBetterJoy.Domain
             }
         }
 
-        public void OnApplicationQuit()
+        public void Stop()
         {
             foreach ((_, Joycon joycon) in joycons)
             {

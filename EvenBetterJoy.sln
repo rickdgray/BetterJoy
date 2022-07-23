@@ -3,18 +3,15 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.2.32630.192
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EvenBetterJoy.Old", "EvenBetterJoy\EvenBetterJoy.Old.csproj", "{1BF709E9-C133-41DF-933A-C9FF3F664C7B}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EvenBetterJoy.Services", "EvenBetterJoy.Services\EvenBetterJoy.Services.csproj", "{F1BCA822-992A-4E33-ABBC-912F4B80810C}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EvenBetterJoy.Models", "EvenBetterJoy.Models\EvenBetterJoy.Models.csproj", "{47C2FFA8-DABA-4A5F-85E0-970817BA4916}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EvenBetterJoy.Domain", "EvenBetterJoy.Domain\EvenBetterJoy.Domain.csproj", "{60579A1F-BD99-4D9D-889C-7829A983EE72}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EvenBetterJoy.Terminal", "EvenBetterJoy.Terminal\EvenBetterJoy.Terminal.csproj", "{C6DD5EF9-984F-46F1-8A63-B9903B33AA0A}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{22511301-BE58-436B-8A83-461C88ABCBBE}"
 	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
 		.gitignore = .gitignore
 		LICENSE = LICENSE
 		README.md = README.md
@@ -31,17 +28,6 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{1BF709E9-C133-41DF-933A-C9FF3F664C7B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1BF709E9-C133-41DF-933A-C9FF3F664C7B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1BF709E9-C133-41DF-933A-C9FF3F664C7B}.Debug|x64.ActiveCfg = Debug|x64
-		{1BF709E9-C133-41DF-933A-C9FF3F664C7B}.Debug|x64.Build.0 = Debug|x64
-		{1BF709E9-C133-41DF-933A-C9FF3F664C7B}.Debug|x86.ActiveCfg = Debug|x86
-		{1BF709E9-C133-41DF-933A-C9FF3F664C7B}.Debug|x86.Build.0 = Debug|x86
-		{1BF709E9-C133-41DF-933A-C9FF3F664C7B}.Release|Any CPU.ActiveCfg = Release|x86
-		{1BF709E9-C133-41DF-933A-C9FF3F664C7B}.Release|x64.ActiveCfg = Release|x64
-		{1BF709E9-C133-41DF-933A-C9FF3F664C7B}.Release|x64.Build.0 = Release|x64
-		{1BF709E9-C133-41DF-933A-C9FF3F664C7B}.Release|x86.ActiveCfg = Release|x86
-		{1BF709E9-C133-41DF-933A-C9FF3F664C7B}.Release|x86.Build.0 = Release|x86
 		{F1BCA822-992A-4E33-ABBC-912F4B80810C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{F1BCA822-992A-4E33-ABBC-912F4B80810C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F1BCA822-992A-4E33-ABBC-912F4B80810C}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -66,18 +52,6 @@ Global
 		{47C2FFA8-DABA-4A5F-85E0-970817BA4916}.Release|x64.Build.0 = Release|Any CPU
 		{47C2FFA8-DABA-4A5F-85E0-970817BA4916}.Release|x86.ActiveCfg = Release|Any CPU
 		{47C2FFA8-DABA-4A5F-85E0-970817BA4916}.Release|x86.Build.0 = Release|Any CPU
-		{60579A1F-BD99-4D9D-889C-7829A983EE72}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{60579A1F-BD99-4D9D-889C-7829A983EE72}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{60579A1F-BD99-4D9D-889C-7829A983EE72}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{60579A1F-BD99-4D9D-889C-7829A983EE72}.Debug|x64.Build.0 = Debug|Any CPU
-		{60579A1F-BD99-4D9D-889C-7829A983EE72}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{60579A1F-BD99-4D9D-889C-7829A983EE72}.Debug|x86.Build.0 = Debug|Any CPU
-		{60579A1F-BD99-4D9D-889C-7829A983EE72}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{60579A1F-BD99-4D9D-889C-7829A983EE72}.Release|Any CPU.Build.0 = Release|Any CPU
-		{60579A1F-BD99-4D9D-889C-7829A983EE72}.Release|x64.ActiveCfg = Release|Any CPU
-		{60579A1F-BD99-4D9D-889C-7829A983EE72}.Release|x64.Build.0 = Release|Any CPU
-		{60579A1F-BD99-4D9D-889C-7829A983EE72}.Release|x86.ActiveCfg = Release|Any CPU
-		{60579A1F-BD99-4D9D-889C-7829A983EE72}.Release|x86.Build.0 = Release|Any CPU
 		{C6DD5EF9-984F-46F1-8A63-B9903B33AA0A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C6DD5EF9-984F-46F1-8A63-B9903B33AA0A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C6DD5EF9-984F-46F1-8A63-B9903B33AA0A}.Debug|x64.ActiveCfg = Debug|Any CPU
