@@ -1,4 +1,4 @@
-﻿namespace EvenBetterJoy.Models
+﻿namespace EvenBetterJoy.Domain.Models
 {
     public enum ControllerDpadDirection
     {

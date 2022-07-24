@@ -1,4 +1,4 @@
-﻿namespace EvenBetterJoy.Models
+﻿namespace EvenBetterJoy.Domain.Models
 {
     public enum ControllerButton
     {
@@ -24,5 +24,5 @@
         STICK2 = 17,
         SHOULDER2_1 = 18,
         SHOULDER2_2 = 19,
-    };
+    }
 }

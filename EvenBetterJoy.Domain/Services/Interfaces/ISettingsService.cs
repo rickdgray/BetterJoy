@@ -1,6 +1,6 @@
-﻿using EvenBetterJoy.Models;
+﻿using EvenBetterJoy.Domain.Models;
 
-namespace EvenBetterJoy.Services
+namespace EvenBetterJoy.Domain.Services
 {
     public interface ISettingsService
     {

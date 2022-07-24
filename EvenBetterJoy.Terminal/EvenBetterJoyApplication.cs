@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
-using EvenBetterJoy.Models;
-using EvenBetterJoy.Services;
+using EvenBetterJoy.Domain.Services;
+using EvenBetterJoy.Domain.Models;
 
 namespace EvenBetterJoy.Terminal
 {

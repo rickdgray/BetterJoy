@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace EvenBetterJoy.Services
+namespace EvenBetterJoy.Domain.Services
 {
     public class DeviceService: IDeviceService, IDisposable
     {
@@ -54,6 +54,7 @@ namespace EvenBetterJoy.Services
             return hid_write(device, data, length);
         }
 
+        //TODO: switch this to bool? make sure that is valid though
         public int SetDeviceNonblocking(IntPtr device, int nonblocking)
         {
             return hid_set_nonblocking(device, nonblocking);

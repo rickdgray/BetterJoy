@@ -1,8 +1,6 @@
 ﻿using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using EvenBetterJoy.Services;
-using EvenBetterJoy.Models;
 
 namespace EvenBetterJoy.Terminal
 {

@@ -7,8 +7,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Timers;
 using System.Globalization;
-using EvenBetterJoy.Models;
-using EvenBetterJoy.Services;
+using EvenBetterJoy.Domain.Services;
+using EvenBetterJoy.Domain.Models;
 
 namespace EvenBetterJoy.Terminal
 {
@@ -173,7 +173,9 @@ namespace EvenBetterJoy.Terminal
                         request.ContentLength = data.Length;
 
                         using (var stream = request.GetRequestStream())
+                        {
                             stream.Write(data, 0, data.Length);
+                        }
 
                         try
                         {

@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace EvenBetterJoy.Models
+namespace EvenBetterJoy.Domain.Models
 {
     public struct DeviceInfo
     {
@@ -19,5 +19,5 @@ namespace EvenBetterJoy.Models
         public ushort usage;
         public int interface_number;
         public IntPtr next;
-    };
+    }
 }

@@ -1,7 +1,7 @@
-﻿using EvenBetterJoy.Models;
-using System.Text.Json;
+﻿using System.Text.Json;
+using EvenBetterJoy.Domain.Models;
 
-namespace EvenBetterJoy.Services
+namespace EvenBetterJoy.Domain.Services
 {
     public class SettingsService : ISettingsService
     {

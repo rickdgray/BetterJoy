@@ -2,9 +2,9 @@
 using System.Net;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using EvenBetterJoy.Models;
+using EvenBetterJoy.Domain.Models;
 
-namespace EvenBetterJoy.Services
+namespace EvenBetterJoy.Domain.Services
 {
     public class HidGuardianService : IHidGuardianService
     {

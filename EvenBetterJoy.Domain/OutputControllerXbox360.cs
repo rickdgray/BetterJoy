@@ -1,7 +1,8 @@
-﻿using Nefarius.ViGEm.Client.Targets;
+﻿using Nefarius.ViGEm.Client;
+using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 
-namespace EvenBetterJoy.Models
+namespace EvenBetterJoy.Domain.Models
 {
     public class OutputControllerXbox360
     {
@@ -9,7 +10,6 @@ namespace EvenBetterJoy.Models
         private OutputControllerXbox360InputState currentState;
 
         public delegate void Xbox360FeedbackReceivedEventHandler(Xbox360FeedbackReceivedEventArgs e);
-
         public event Xbox360FeedbackReceivedEventHandler FeedbackReceived;
 
         public OutputControllerXbox360(ViGEmClient client)
@@ -22,6 +22,18 @@ namespace EvenBetterJoy.Models
         private void FeedbackReceivedRcv(object _sender, Xbox360FeedbackReceivedEventArgs e)
         {
             FeedbackReceived(e);
+        }
+
+        public void Connect()
+        {
+            controller.Connect();
+            //TODO: why was this only on 360?
+            //UpdateInput(new OutputControllerXbox360InputState());
+        }
+
+        public void Disconnect()
+        {
+            controller.Disconnect();
         }
 
         public void UpdateInput(OutputControllerXbox360InputState newState)
@@ -62,17 +74,6 @@ namespace EvenBetterJoy.Models
             controller.SubmitReport();
 
             currentState = newState;
-        }
-
-        public void Connect()
-        {
-            controller.Connect();
-            UpdateInput(new OutputControllerXbox360InputState());
-        }
-
-        public void Disconnect()
-        {
-            controller.Disconnect();
         }
     }
 }

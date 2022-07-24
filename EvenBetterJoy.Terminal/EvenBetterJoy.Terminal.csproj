@@ -18,7 +18,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\EvenBetterJoy.Services\EvenBetterJoy.Services.csproj" />
+	  <ProjectReference Include="..\EvenBetterJoy.Domain\EvenBetterJoy.Domain.csproj" />
 	</ItemGroup>
 
 </Project>

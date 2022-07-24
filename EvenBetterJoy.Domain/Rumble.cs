@@ -1,4 +1,4 @@
-﻿namespace EvenBetterJoy.Models
+﻿namespace EvenBetterJoy.Domain.Models
 {
     public class Rumble
     {
@@ -23,8 +23,16 @@
         
         private static float Clamp(float x, float min, float max)
         {
-            if (x < min) return min;
-            if (x > max) return max;
+            if (x < min)
+            {
+                return min;
+            }
+
+            if (x > max)
+            {
+                return max;
+            }
+
             return x;
         }
 
@@ -33,13 +41,21 @@
             byte en_amp;
 
             if (amp == 0)
+            {
                 en_amp = 0;
+            }
             else if (amp < 0.117)
+            {
                 en_amp = (byte)(((Math.Log(amp * 1000, 2) * 32) - 0x60) / (5 - Math.Pow(amp, 2)) - 1);
+            }
             else if (amp < 0.23)
+            {
                 en_amp = (byte)(((Math.Log(amp * 1000, 2) * 32) - 0x60) - 0x5c);
+            }
             else
+            {
                 en_amp = (byte)((((Math.Log(amp * 1000, 2) * 32) - 0x60) * 2) - 0xf6);
+            }
 
             return en_amp;
         }
@@ -76,7 +92,10 @@
 
                 lf_amp = (ushort)(lf_amp >> 1);
                 lf_amp += 0x40;
-                if (parity > 0) lf_amp |= 0x8000;
+                if (parity > 0)
+                {
+                    lf_amp |= 0x8000;
+                }
 
                 hf_amp = (byte)(hf_amp - (hf_amp % 2)); // make even at all times to prevent weird hum
                 rumble_data[0] = (byte)(hf & 0xff);

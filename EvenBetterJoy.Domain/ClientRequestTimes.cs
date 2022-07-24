@@ -1,6 +1,6 @@
 ﻿using System.Net.NetworkInformation;
 
-namespace EvenBetterJoy.Models
+namespace EvenBetterJoy.Domain.Models
 {
     public class ClientRequestTimes
     {
@@ -18,7 +18,9 @@ namespace EvenBetterJoy.Models
             padIds = new DateTime[4];
 
             for (int i = 0; i < padIds.Length; i++)
+            {
                 padIds[i] = DateTime.MinValue;
+            }
 
             padMacs = new Dictionary<PhysicalAddress, DateTime>();
         }
@@ -26,13 +28,17 @@ namespace EvenBetterJoy.Models
         public void RequestPadInfo(byte regFlags, byte idToReg, PhysicalAddress macToReg)
         {
             if (regFlags == 0)
+            {
                 allPads = DateTime.UtcNow;
+            }
             else
             {
                 if ((regFlags & 0x01) != 0) //id valid
                 {
                     if (idToReg < padIds.Length)
+                    {
                         padIds[idToReg] = DateTime.UtcNow;
+                    }
                 }
                 if ((regFlags & 0x02) != 0) //mac valid
                 {

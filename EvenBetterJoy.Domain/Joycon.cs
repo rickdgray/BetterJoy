@@ -3,8 +3,11 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Net.NetworkInformation;
 using System.Numerics;
+using EvenBetterJoy.Domain.Services;
+using Nefarius.ViGEm.Client.Targets.Xbox360;
+using Nefarius.ViGEm.Client.Targets.DualShock4;
 
-namespace EvenBetterJoy.Models
+namespace EvenBetterJoy.Domain.Models
 {
     public class Joycon
     {
@@ -160,6 +163,8 @@ namespace EvenBetterJoy.Models
 
         private readonly Settings settings;
         private readonly ILogger logger;
+        private readonly DeviceService deviceService;
+        private readonly CommunicationService communicationService;
         public Joycon(IntPtr handle_, bool imu, bool localize, float alpha, bool left, string path, string serialNum, int id = 0, bool isPro = false, bool isSnes = false)
         {
             serial_number = serialNum;
@@ -256,19 +261,16 @@ namespace EvenBetterJoy.Models
         public int Attach()
         {
             state = ControllerState.ATTACHED;
-
-            byte[] a = { 0x0 };
-
-            // Connect
+            
             if (isUSB)
             {
-                a = Enumerable.Repeat((byte)0, 64).ToArray();
+                var a = Enumerable.Repeat((byte)0, 64).ToArray();
                 logger.LogInformation("Using USB.");
 
                 a[0] = 0x80;
                 a[1] = 0x1;
-                HidApi.HidWrite(handle, a, new UIntPtr(2));
-                HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
+                deviceService.Write(handle, a, new UIntPtr(2));
+                deviceService.Read(handle, a, new UIntPtr(64), 100);
 
                 if (a[0] != 0x81)
                 {
@@ -288,24 +290,28 @@ namespace EvenBetterJoy.Models
                 a = Enumerable.Repeat((byte)0, 64).ToArray();
 
                 // Handshake
-                a[0] = 0x80; a[1] = 0x2;
-                HidApi.HidWrite(handle, a, new UIntPtr(2));
-                HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
+                a[0] = 0x80;
+                a[1] = 0x2;
+                deviceService.Write(handle, a, new UIntPtr(2));
+                deviceService.Read(handle, a, new UIntPtr(64), 100);
 
                 // 3Mbit baud rate
-                a[0] = 0x80; a[1] = 0x3;
-                HidApi.HidWrite(handle, a, new UIntPtr(2));
-                HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
+                a[0] = 0x80;
+                a[1] = 0x3;
+                deviceService.Write(handle, a, new UIntPtr(2));
+                deviceService.Read(handle, a, new UIntPtr(64), 100);
 
                 // Handshake at new baud rate
-                a[0] = 0x80; a[1] = 0x2;
-                HidApi.HidWrite(handle, a, new UIntPtr(2));
-                HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
+                a[0] = 0x80;
+                a[1] = 0x2;
+                deviceService.Write(handle, a, new UIntPtr(2));
+                deviceService.Read(handle, a, new UIntPtr(64), 100);
 
                 // Prevent HID timeout
-                a[0] = 0x80; a[1] = 0x4;
-                HidApi.HidWrite(handle, a, new UIntPtr(2));
-                HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
+                a[0] = 0x80;
+                a[1] = 0x4;
+                deviceService.Write(handle, a, new UIntPtr(2));
+                deviceService.Read(handle, a, new UIntPtr(64), 100);
 
             }
 
@@ -324,6 +330,7 @@ namespace EvenBetterJoy.Models
                 }
             }
 
+            //TODO: what's up with this variable after finding the nic?
             byte[] btmac_host = btMAC.GetAddressBytes();
             //TODO: what was this for?
             // send host MAC and acquire Joycon MAC
@@ -341,7 +348,7 @@ namespace EvenBetterJoy.Models
             Subcommand(0x3, new byte[] { 0x30 }, 1);
             DebugPrint("Done with init.", ControllerDebugMode.COMMS);
 
-            HidApi.HidSetNonblocking(handle, 1);
+            deviceService.SetDeviceNonblocking(handle, 1);
 
             return 0;
         }
@@ -385,7 +392,7 @@ namespace EvenBetterJoy.Models
         {
             if (state > ControllerState.DROPPED)
             {
-                HidApi.HidSetNonblocking(handle, 0);
+                deviceService.SetDeviceNonblocking(handle, 0);
                 SetHCIState(0x00);
                 state = ControllerState.DROPPED;
             }
@@ -416,7 +423,7 @@ namespace EvenBetterJoy.Models
 
             if (state > ControllerState.NO_JOYCONS)
             {
-                HidApi.HidSetNonblocking(handle, 0);
+                deviceService.SetDeviceNonblocking(handle, 0);
 
                 //Subcommand(0x40, new byte[] { 0x0 }, 1); // disable IMU sensor
                 //Subcommand(0x48, new byte[] { 0x0 }, 1); // Would turn off rumble?
@@ -426,15 +433,15 @@ namespace EvenBetterJoy.Models
                     // Allow device to talk to BT again
                     byte[] a = Enumerable.Repeat((byte)0, 64).ToArray();
                     a[0] = 0x80; a[1] = 0x5;
-                    HidApi.HidWrite(handle, a, new UIntPtr(2));
+                    deviceService.Write(handle, a, new UIntPtr(2));
                     a[0] = 0x80; a[1] = 0x6;
-                    HidApi.HidWrite(handle, a, new UIntPtr(2));
+                    deviceService.Write(handle, a, new UIntPtr(2));
                 }
             }
 
             if (close || state > ControllerState.DROPPED)
             {
-                HidApi.HidClose(handle);
+                deviceService.CloseDevice(handle);
             }
 
             state = ControllerState.NOT_ATTACHED;
@@ -448,17 +455,17 @@ namespace EvenBetterJoy.Models
                 return -2;
             }
             
-            byte[] raw_buf = new byte[report_len];
-            int inboundData = HidApi.HidReadTimeout(handle, raw_buf, new UIntPtr(report_len), 5);
+            var raw_buf = new byte[report_len];
+            var inboundData = deviceService.Read(handle, raw_buf, new UIntPtr(report_len), 5);
 
             if (inboundData > 0)
             {
                 // Process packets as soon as they come
-                for (int n = 0; n < 3; n++)
+                for (var n = 0; n < 3; n++)
                 {
                     ExtractIMUValues(raw_buf, n);
 
-                    byte lag = (byte)Math.Max(0, raw_buf[1] - ts_en - 3);
+                    var lag = (byte)Math.Max(0, raw_buf[1] - ts_en - 3);
                     if (n == 0)
                     {
                         // add lag once
@@ -651,66 +658,66 @@ namespace EvenBetterJoy.Models
 
             if (buttons_down[(int)ControllerButton.CAPTURE])
             {
-                Simulate(Config.GetValue("capture"));
+                Simulate(settings.Capture);
             }
             
             if (buttons_down[(int)ControllerButton.HOME])
             {
-                Simulate(Config.GetValue("home"));
+                Simulate(settings.Home);
             }
             
-            SimulateContinous((int)ControllerButton.CAPTURE, Config.GetValue("capture"));
-            SimulateContinous((int)ControllerButton.HOME, ControllerButton.GetValue("home"));
+            SimulateContinous((int)ControllerButton.CAPTURE, settings.Capture);
+            SimulateContinous((int)ControllerButton.HOME, settings.Home);
 
             if (isLeft)
             {
                 if (buttons_down[(int)ControllerButton.SL])
                 {
-                    Simulate(Config.GetValue("sl_l"), false, false);
+                    Simulate(settings.LeftJoyconL, false, false);
                 }
                 
                 if (buttons_up[(int)ControllerButton.SL])
                 {
-                    Simulate(Config.GetValue("sl_l"), false, true);
+                    Simulate(settings.LeftJoyconL, false, true);
                 }
                 
                 if (buttons_down[(int)ControllerButton.SR])
                 {
-                    Simulate(Config.GetValue("sr_l"), false, false);
+                    Simulate(settings.LeftJoyconR, false, false);
                 }
                 
                 if (buttons_up[(int)ControllerButton.SR])
                 {
-                    Simulate(Config.GetValue("sr_l"), false, true);
+                    Simulate(settings.LeftJoyconR, false, true);
                 }
 
-                SimulateContinous((int)ControllerButton.SL, Config.GetValue("sl_l"));
-                SimulateContinous((int)ControllerButton.SR, Config.GetValue("sr_l"));
+                SimulateContinous((int)ControllerButton.SL, settings.LeftJoyconL);
+                SimulateContinous((int)ControllerButton.SR, settings.LeftJoyconR);
             }
             else
             {
                 if (buttons_down[(int)ControllerButton.SL])
                 {
-                    Simulate(Config.GetValue("sl_r"), false, false);
+                    Simulate(settings.RightJoyconL, false, false);
                 }
                 
                 if (buttons_up[(int)ControllerButton.SL])
                 {
-                    Simulate(Config.GetValue("sl_r"), false, true);
+                    Simulate(settings.RightJoyconL, false, true);
                 }
                 
                 if (buttons_down[(int)ControllerButton.SR])
                 {
-                    Simulate(Config.GetValue("sr_r"), false, false);
+                    Simulate(settings.RightJoyconR, false, false);
                 }
 
                 if (buttons_up[(int)ControllerButton.SR])
                 {
-                    Simulate(Config.GetValue("sr_r"), false, true);
+                    Simulate(settings.RightJoyconR, false, true);
                 }
 
-                SimulateContinous((int)ControllerButton.SL, Config.GetValue("sl_r"));
-                SimulateContinous((int)ControllerButton.SR, Config.GetValue("sr_r"));
+                SimulateContinous((int)ControllerButton.SL, settings.RightJoyconL);
+                SimulateContinous((int)ControllerButton.SR, settings.RightJoyconR);
             }
 
             // Filtered IMU data
@@ -737,7 +744,7 @@ namespace EvenBetterJoy.Models
 
                 if (buttons[(int)leftT])
                 {
-                    sliderVal[0] = (byte)Math.Min(Byte.MaxValue, Math.Max(0, sliderVal[0] + ldy));
+                    sliderVal[0] = (byte)Math.Min(byte.MaxValue, Math.Max(0, sliderVal[0] + ldy));
                 }
                 else
                 {
@@ -746,7 +753,7 @@ namespace EvenBetterJoy.Models
 
                 if (buttons[(int)rightT])
                 {
-                    sliderVal[1] = (byte)Math.Min(Byte.MaxValue, Math.Max(0, sliderVal[1] + rdy));
+                    sliderVal[1] = (byte)Math.Min(byte.MaxValue, Math.Max(0, sliderVal[1] + rdy));
                 }
                 else
                 {
@@ -754,7 +761,7 @@ namespace EvenBetterJoy.Models
                 }
             }
 
-            string res_val = Config.GetValue("active_gyro");
+            string res_val = settings.ActiveGyro;
             if (res_val.StartsWith("joy_"))
             {
                 var i = int.Parse(res_val.Substring(4));
@@ -780,7 +787,7 @@ namespace EvenBetterJoy.Models
 
             if (settings.GyroToJoyOrMouse.Substring(0, 3) == "joy")
             {
-                if (Config.GetValue("active_gyro") == "0" || active_gyro)
+                if (settings.ActiveGyro == "0" || active_gyro)
                 {
                     float[] control_stick = (settings.GyroToJoyOrMouse == "joy_left") ? stick : stick2;
 
@@ -803,7 +810,7 @@ namespace EvenBetterJoy.Models
             else if (settings.GyroToJoyOrMouse == "mouse" && (isPro || (Other == null) || (Other != null && (settings.GyroMouseLeftHanded ? isLeft : !isLeft))))
             {
                 // gyro data is in degrees/s
-                if (Config.GetValue("active_gyro") == "0" || active_gyro)
+                if (settings.ActiveGyro == "0" || active_gyro)
                 {
                     int dx, dy;
 
@@ -822,7 +829,7 @@ namespace EvenBetterJoy.Models
                 }
 
                 // reset mouse position to centre of primary monitor
-                res_val = Config.GetValue("reset_mouse");
+                res_val = settings.ResetMouse;
                 if (res_val.StartsWith("joy_"))
                 {
                     int i = int.Parse(res_val[4..]);
@@ -1202,7 +1209,7 @@ namespace EvenBetterJoy.Models
 
             Array.Copy(buf, 0, buf_, 2, 8);
             PrintArray(buf_, ControllerDebugMode.RUMBLE, format: "Rumble data sent: {0:S}");
-            HidApi.HidWrite(handle, buf_, new UIntPtr(report_len));
+            deviceService.Write(handle, buf_, new UIntPtr(report_len));
         }
 
         private byte[] Subcommand(byte sc, byte[] buf, uint len, bool print = true)
@@ -1229,13 +1236,13 @@ namespace EvenBetterJoy.Models
                 PrintArray(buf_, ControllerDebugMode.COMMS, len, 11, "Subcommand 0x" + string.Format("{0:X2}", sc) + " sent. Data: 0x{0:S}");
             }
 
-            HidApi.HidWrite(handle, buf_, new UIntPtr(len + 11));
+            deviceService.Write(handle, buf_, new UIntPtr(len + 11));
 
             //TODO: does this really need to be a do while?
             int tries = 0;
             do
             {
-                int res = HidApi.HidReadTimeout(handle, response, new UIntPtr(report_len), 100);
+                int res = deviceService.Read(handle, response, new UIntPtr(report_len), 100);
                 if (res < 1)
                 {
                     DebugPrint("No response.", ControllerDebugMode.COMMS);
@@ -1288,7 +1295,7 @@ namespace EvenBetterJoy.Models
                 return;
             }
 
-            HidApi.HidSetNonblocking(handle, 0);
+            deviceService.SetDeviceNonblocking(handle, 0);
 
             byte[] buf_ = ReadSPI(0x80, isLeft ? (byte)0x12 : (byte)0x1d, 9);
             bool found = false;
@@ -1401,7 +1408,7 @@ namespace EvenBetterJoy.Models
                 PrintArray(gyr_neutral, len: 3, d: ControllerDebugMode.IMU, format: "Factory gyro neutral position: {0:S}");
             }
 
-            HidApi.HidSetNonblocking(handle, 1);
+            deviceService.SetDeviceNonblocking(handle, 1);
         }
 
         private byte[] ReadSPI(byte addr1, byte addr2, uint len, bool print = false)
@@ -1450,7 +1457,7 @@ namespace EvenBetterJoy.Models
             DebugPrint(string.Format(format, tostr), d);
         }
 
-        private static OutputControllerXbox360InputState MapToXbox360Input(Joycon input)
+        private OutputControllerXbox360InputState MapToXbox360Input(Joycon input)
         {
             var output = new OutputControllerXbox360InputState();
 
@@ -1534,7 +1541,7 @@ namespace EvenBetterJoy.Models
             }
 
             // overwrite guide button if it's custom-mapped
-            if (Config.GetValue("home") != "0")
+            if (settings.Home != "0")
             {
                 output.guide = false;
             }
@@ -1572,7 +1579,7 @@ namespace EvenBetterJoy.Models
             return output;
         }
 
-        public static OutputControllerDualShock4InputState MapToDualShock4Input(Joycon input)
+        public OutputControllerDualShock4InputState MapToDualShock4Input(Joycon input)
         {
             var output = new OutputControllerDualShock4InputState();
 
@@ -1723,7 +1730,7 @@ namespace EvenBetterJoy.Models
             }
 
             // overwrite guide button if it's custom-mapped
-            if (Config.GetValue("home") != "0")
+            if (settings.Home != "0")
             {
                 output.ps = false;
             }

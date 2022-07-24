@@ -1,4 +1,4 @@
-﻿namespace EvenBetterJoy.Models
+﻿namespace EvenBetterJoy.Domain.Models
 {
     public enum ControllerMessageType
     {
@@ -8,5 +8,5 @@
         DSUS_PortInfo = 0x100001,
         DSUC_PadDataReq = 0x100002,
         DSUS_PadDataRsp = 0x100002,
-    };
+    }
 }
