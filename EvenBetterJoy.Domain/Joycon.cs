@@ -3,9 +3,10 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Net.NetworkInformation;
 using System.Numerics;
-using EvenBetterJoy.Domain.Services;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 using Nefarius.ViGEm.Client.Targets.DualShock4;
+using Nefarius.ViGEm.Client;
+using EvenBetterJoy.Domain.Services;
 
 namespace EvenBetterJoy.Domain.Models
 {
@@ -163,16 +164,25 @@ namespace EvenBetterJoy.Domain.Models
 
         private readonly Settings settings;
         private readonly ILogger logger;
-        private readonly DeviceService deviceService;
-        private readonly CommunicationService communicationService;
-        public Joycon(IntPtr handle_, bool imu, bool localize, float alpha, bool left, string path, string serialNum, int id = 0, bool isPro = false, bool isSnes = false)
+        private readonly IDeviceService deviceService;
+        private readonly ICommunicationService communicationService;
+        private readonly ViGEmClient client;
+        public Joycon(Settings settings, IDeviceService deviceService, ICommunicationService communicationService,
+            ViGEmClient client, IntPtr handle_, bool imu, bool localize, float alpha, bool left,
+            string path, string serialNum, int id = 0, bool isPro = false, bool isSnes = false)
         {
+            this.settings = settings;
+            //TODO: how to get a ILogger<Joycon>?
+            this.deviceService = deviceService;
+            this.communicationService = communicationService;
+            this.client = client;
+
             serial_number = serialNum;
             activeData = new float[6];
             handle = handle_;
             imu_enabled = imu;
             do_localize = localize;
-            rumble = new Rumble(new float[] { lowFreq, highFreq, 0 });
+            rumble = new Rumble(new float[] { settings.LowFreqRumble, settings.HighFreqRumble, 0 });
             for (int i = 0; i < buttons_down_timestamp.Length; i++)
             {
                 buttons_down_timestamp[i] = -1;
@@ -192,8 +202,8 @@ namespace EvenBetterJoy.Domain.Models
 
             if (settings.ShowAsXInput)
             {
-                out_xbox = new OutputControllerXbox360();
-                if (toRumble)
+                out_xbox = new OutputControllerXbox360(client);
+                if (settings.EnableRumble)
                 {
                     out_xbox.FeedbackReceived += ReceiveRumble;
                 }
@@ -201,8 +211,8 @@ namespace EvenBetterJoy.Domain.Models
 
             if (settings.ShowAsDS4)
             {
-                out_ds4 = new OutputControllerDualShock4();
-                if (toRumble)
+                out_ds4 = new OutputControllerDualShock4(client);
+                if (settings.EnableRumble)
                 {
                     out_ds4.FeedbackReceived += Ds4_FeedbackReceived;
                 }
@@ -214,22 +224,22 @@ namespace EvenBetterJoy.Domain.Models
         public void ReceiveRumble(Xbox360FeedbackReceivedEventArgs e)
         {
             DebugPrint("Rumble data Recived: XInput", ControllerDebugMode.RUMBLE);
-            SetRumble(lowFreq, highFreq, (float)Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
+            SetRumble(settings.LowFreqRumble, settings.HighFreqRumble, Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
 
             if (Other != null && Other != this)
             {
-                Other.SetRumble(lowFreq, highFreq, (float)Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
+                Other.SetRumble(settings.LowFreqRumble, settings.HighFreqRumble, Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
             }
         }
 
         public void Ds4_FeedbackReceived(DualShock4FeedbackReceivedEventArgs e)
         {
             DebugPrint("Rumble data Recived: DS4", ControllerDebugMode.RUMBLE);
-            SetRumble(lowFreq, highFreq, (float)Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
+            SetRumble(settings.LowFreqRumble, settings.HighFreqRumble, Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
 
             if (Other != null && Other != this)
             {
-                Other.SetRumble(lowFreq, highFreq, (float)Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
+                Other.SetRumble(settings.LowFreqRumble, settings.HighFreqRumble, Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
             }
         }
 
@@ -535,6 +545,7 @@ namespace EvenBetterJoy.Domain.Models
         private void Simulate(string s, bool click = true, bool up = false)
         {
             //TODO: get rid of this string parsing hack
+            //TODO: try out Desktop.Robot for os agnostic key simulation
             //if (s.StartsWith("key_"))
             //{
             //    WindowsInput.Events.KeyCode key = (WindowsInput.Events.KeyCode)Int32.Parse(s.Substring(4));
@@ -785,7 +796,7 @@ namespace EvenBetterJoy.Domain.Models
                 }
             }
 
-            if (settings.GyroToJoyOrMouse.Substring(0, 3) == "joy")
+            if (settings.GyroToJoyOrMouse[..3] == "joy")
             {
                 if (settings.ActiveGyro == "0" || active_gyro)
                 {
@@ -807,38 +818,41 @@ namespace EvenBetterJoy.Domain.Models
                     control_stick[1] = Math.Max(-1.0f, Math.Min(1.0f, control_stick[1] / settings.GyroStickReduction + dy));
                 }
             }
-            else if (settings.GyroToJoyOrMouse == "mouse" && (isPro || (Other == null) || (Other != null && (settings.GyroMouseLeftHanded ? isLeft : !isLeft))))
-            {
-                // gyro data is in degrees/s
-                if (settings.ActiveGyro == "0" || active_gyro)
-                {
-                    int dx, dy;
+            //TODO: probably gonna throw this away if my assumption is correct
+            //that it's just for controlling gyro with mouse
+            //else if (settings.GyroToJoyOrMouse == "mouse" && (isPro || (Other == null) || (Other != null && (settings.GyroMouseLeftHanded ? isLeft : !isLeft))))
+            //{
+            //    // gyro data is in degrees/s
+            //    if (settings.ActiveGyro == "0" || active_gyro)
+            //    {
+            //        int dx, dy;
 
-                    if (settings.UseFilteredIMU)
-                    {
-                        dx = (int)(settings.GyroMouseSensitivityX * (cur_rotation[1] - cur_rotation[4])); // yaw
-                        dy = (int)-(settings.GyroMouseSensitivityY * (cur_rotation[0] - cur_rotation[3])); // pitch
-                    }
-                    else
-                    {
-                        dx = (int)(settings.GyroMouseSensitivityX * (gyr_g.Z * dt));
-                        dy = (int)-(settings.GyroMouseSensitivityY * (gyr_g.Y * dt));
-                    }
+            //        if (settings.UseFilteredIMU)
+            //        {
+            //            dx = (int)(settings.GyroMouseSensitivityX * (cur_rotation[1] - cur_rotation[4])); // yaw
+            //            dy = (int)-(settings.GyroMouseSensitivityY * (cur_rotation[0] - cur_rotation[3])); // pitch
+            //        }
+            //        else
+            //        {
+            //            dx = (int)(settings.GyroMouseSensitivityX * (gyr_g.Z * dt));
+            //            dy = (int)-(settings.GyroMouseSensitivityY * (gyr_g.Y * dt));
+            //        }
 
-                    WindowsInput.Simulate.Events().MoveBy(dx, dy).Invoke();
-                }
+            //        //robot.MouseMove(dx, dy);
+            //        WindowsInput.Simulate.Events().MoveBy(dx, dy).Invoke();
+            //    }
 
-                // reset mouse position to centre of primary monitor
-                res_val = settings.ResetMouse;
-                if (res_val.StartsWith("joy_"))
-                {
-                    int i = int.Parse(res_val[4..]);
-                    if (buttons_down[i] || (Other != null && Other.buttons_down[i]))
-                    {
-                        WindowsInput.Simulate.Events().MoveTo(Screen.PrimaryScreen.Bounds.Width / 2, Screen.PrimaryScreen.Bounds.Height / 2).Invoke();
-                    }
-                }
-            }
+            //    // reset mouse position to centre of primary monitor
+            //    res_val = settings.ResetMouse;
+            //    if (res_val.StartsWith("joy_"))
+            //    {
+            //        int i = int.Parse(res_val[4..]);
+            //        if (buttons_down[i] || (Other != null && Other.buttons_down[i]))
+            //        {
+            //            WindowsInput.Simulate.Events().MoveTo(Screen.PrimaryScreen.Bounds.Width / 2, Screen.PrimaryScreen.Bounds.Height / 2).Invoke();
+            //        }
+            //    }
+            //}
         }
 
         private Thread PollThread;
@@ -1461,14 +1475,10 @@ namespace EvenBetterJoy.Domain.Models
         {
             var output = new OutputControllerXbox360InputState();
 
-            var swapAB = input.swapAB;
-            var swapXY = input.swapXY;
-
             var isPro = input.isPro;
             var isLeft = input.isLeft;
             var isSnes = input.isSnes;
             var other = input.Other;
-            var GyroAnalogSliders = input.GyroAnalogSliders;
 
             var buttons = input.buttons;
             var stick = input.stick;
@@ -1477,10 +1487,10 @@ namespace EvenBetterJoy.Domain.Models
 
             if (isPro)
             {
-                output.a = buttons[(int)(!swapAB ? ControllerButton.B : ControllerButton.A)];
-                output.b = buttons[(int)(!swapAB ? ControllerButton.A : ControllerButton.B)];
-                output.y = buttons[(int)(!swapXY ? ControllerButton.X : ControllerButton.Y)];
-                output.x = buttons[(int)(!swapXY ? ControllerButton.Y : ControllerButton.X)];
+                output.a = buttons[(int)(!settings.SwapAB ? ControllerButton.B : ControllerButton.A)];
+                output.b = buttons[(int)(!settings.SwapAB ? ControllerButton.A : ControllerButton.B)];
+                output.y = buttons[(int)(!settings.SwapXY ? ControllerButton.X : ControllerButton.Y)];
+                output.x = buttons[(int)(!settings.SwapXY ? ControllerButton.Y : ControllerButton.X)];
 
                 output.dpad_up = buttons[(int)ControllerButton.DPAD_UP];
                 output.dpad_down = buttons[(int)ControllerButton.DPAD_DOWN];
@@ -1502,10 +1512,10 @@ namespace EvenBetterJoy.Domain.Models
                 if (other != null)
                 {
                     // no need for && other != this
-                    output.a = buttons[(int)(!swapAB ? isLeft ? ControllerButton.B : ControllerButton.DPAD_DOWN : isLeft ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
-                    output.b = buttons[(int)(swapAB ? isLeft ? ControllerButton.B : ControllerButton.DPAD_DOWN : isLeft ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
-                    output.y = buttons[(int)(!swapXY ? isLeft ? ControllerButton.X : ControllerButton.DPAD_UP : isLeft ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
-                    output.x = buttons[(int)(swapXY ? isLeft ? ControllerButton.X : ControllerButton.DPAD_UP : isLeft ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
+                    output.a = buttons[(int)(!settings.SwapAB ? isLeft ? ControllerButton.B : ControllerButton.DPAD_DOWN : isLeft ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
+                    output.b = buttons[(int)(settings.SwapAB ? isLeft ? ControllerButton.B : ControllerButton.DPAD_DOWN : isLeft ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
+                    output.y = buttons[(int)(!settings.SwapXY ? isLeft ? ControllerButton.X : ControllerButton.DPAD_UP : isLeft ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
+                    output.x = buttons[(int)(settings.SwapXY ? isLeft ? ControllerButton.X : ControllerButton.DPAD_UP : isLeft ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
 
                     output.dpad_up = buttons[(int)(isLeft ? ControllerButton.DPAD_UP : ControllerButton.X)];
                     output.dpad_down = buttons[(int)(isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.B)];
@@ -1525,10 +1535,10 @@ namespace EvenBetterJoy.Domain.Models
                 else
                 {
                     // single joycon mode
-                    output.a = buttons[(int)(!swapAB ? isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT : isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
-                    output.b = buttons[(int)(swapAB ? isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT : isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
-                    output.y = buttons[(int)(!swapXY ? isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT : isLeft ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
-                    output.x = buttons[(int)(swapXY ? isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT : isLeft ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
+                    output.a = buttons[(int)(!settings.SwapAB ? isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT : isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
+                    output.b = buttons[(int)(settings.SwapAB ? isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT : isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
+                    output.y = buttons[(int)(!settings.SwapXY ? isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT : isLeft ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
+                    output.x = buttons[(int)(settings.SwapXY ? isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT : isLeft ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
 
                     output.back = buttons[(int)ControllerButton.MINUS] | buttons[(int)ControllerButton.HOME];
                     output.start = buttons[(int)ControllerButton.PLUS] | buttons[(int)ControllerButton.CAPTURE];
@@ -1565,8 +1575,8 @@ namespace EvenBetterJoy.Domain.Models
 
             if (other != null || isPro)
             {
-                byte lval = GyroAnalogSliders ? sliderVal[0] : byte.MaxValue;
-                byte rval = GyroAnalogSliders ? sliderVal[1] : byte.MaxValue;
+                byte lval = settings.GyroAnalogSliders ? sliderVal[0] : byte.MaxValue;
+                byte rval = settings.GyroAnalogSliders ? sliderVal[1] : byte.MaxValue;
                 output.trigger_left = (byte)(buttons[(int)(isLeft ? ControllerButton.SHOULDER_2 : ControllerButton.SHOULDER2_2)] ? lval : 0);
                 output.trigger_right = (byte)(buttons[(int)(isLeft ? ControllerButton.SHOULDER2_2 : ControllerButton.SHOULDER_2)] ? rval : 0);
             }
@@ -1583,14 +1593,10 @@ namespace EvenBetterJoy.Domain.Models
         {
             var output = new OutputControllerDualShock4InputState();
 
-            var swapAB = input.swapAB;
-            var swapXY = input.swapXY;
-
             var isPro = input.isPro;
             var isLeft = input.isLeft;
             var isSnes = input.isSnes;
             var other = input.Other;
-            var GyroAnalogSliders = input.GyroAnalogSliders;
 
             var buttons = input.buttons;
             var stick = input.stick;
@@ -1599,10 +1605,10 @@ namespace EvenBetterJoy.Domain.Models
 
             if (isPro)
             {
-                output.cross = buttons[(int)(!swapAB ? ControllerButton.B : ControllerButton.A)];
-                output.circle = buttons[(int)(!swapAB ? ControllerButton.A : ControllerButton.B)];
-                output.triangle = buttons[(int)(!swapXY ? ControllerButton.X : ControllerButton.Y)];
-                output.square = buttons[(int)(!swapXY ? ControllerButton.Y : ControllerButton.X)];
+                output.cross = buttons[(int)(!settings.SwapAB ? ControllerButton.B : ControllerButton.A)];
+                output.circle = buttons[(int)(!settings.SwapAB ? ControllerButton.A : ControllerButton.B)];
+                output.triangle = buttons[(int)(!settings.SwapXY ? ControllerButton.X : ControllerButton.Y)];
+                output.square = buttons[(int)(!settings.SwapXY ? ControllerButton.Y : ControllerButton.X)];
 
 
                 if (buttons[(int)ControllerButton.DPAD_UP])
@@ -1657,11 +1663,12 @@ namespace EvenBetterJoy.Domain.Models
             {
                 if (other != null)
                 {
+                    //TODO: wtf is this useless comment trying to tell me
                     // no need for && other != this
-                    output.cross = !swapAB ? buttons[(int)(isLeft ? ControllerButton.B : ControllerButton.DPAD_DOWN)] : buttons[(int)(isLeft ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
-                    output.circle = swapAB ? buttons[(int)(isLeft ? ControllerButton.B : ControllerButton.DPAD_DOWN)] : buttons[(int)(isLeft ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
-                    output.triangle = !swapXY ? buttons[(int)(isLeft ? ControllerButton.X : ControllerButton.DPAD_UP)] : buttons[(int)(isLeft ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
-                    output.square = swapXY ? buttons[(int)(isLeft ? ControllerButton.X : ControllerButton.DPAD_UP)] : buttons[(int)(isLeft ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
+                    output.cross = !settings.SwapAB ? buttons[(int)(isLeft ? ControllerButton.B : ControllerButton.DPAD_DOWN)] : buttons[(int)(isLeft ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
+                    output.circle = settings.SwapAB ? buttons[(int)(isLeft ? ControllerButton.B : ControllerButton.DPAD_DOWN)] : buttons[(int)(isLeft ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
+                    output.triangle = !settings.SwapXY ? buttons[(int)(isLeft ? ControllerButton.X : ControllerButton.DPAD_UP)] : buttons[(int)(isLeft ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
+                    output.square = settings.SwapXY ? buttons[(int)(isLeft ? ControllerButton.X : ControllerButton.DPAD_UP)] : buttons[(int)(isLeft ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
 
                     if (buttons[(int)(isLeft ? ControllerButton.DPAD_UP : ControllerButton.X)])
                     {
@@ -1714,10 +1721,10 @@ namespace EvenBetterJoy.Domain.Models
                 else
                 {
                     // single joycon mode
-                    output.cross = !swapAB ? buttons[(int)(isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT)] : buttons[(int)(isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
-                    output.circle = swapAB ? buttons[(int)(isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT)] : buttons[(int)(isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
-                    output.triangle = !swapXY ? buttons[(int)(isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT)] : buttons[(int)(isLeft ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
-                    output.square = swapXY ? buttons[(int)(isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT)] : buttons[(int)(isLeft ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
+                    output.cross = !settings.SwapAB ? buttons[(int)(isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT)] : buttons[(int)(isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
+                    output.circle = settings.SwapAB ? buttons[(int)(isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT)] : buttons[(int)(isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
+                    output.triangle = !settings.SwapXY ? buttons[(int)(isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT)] : buttons[(int)(isLeft ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
+                    output.square = settings.SwapXY ? buttons[(int)(isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT)] : buttons[(int)(isLeft ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
 
                     output.ps = buttons[(int)ControllerButton.MINUS] | buttons[(int)ControllerButton.HOME];
                     output.options = buttons[(int)ControllerButton.PLUS] | buttons[(int)ControllerButton.CAPTURE];
@@ -1755,8 +1762,8 @@ namespace EvenBetterJoy.Domain.Models
 
             if (other != null || isPro)
             {
-                byte lval = GyroAnalogSliders ? sliderVal[0] : byte.MaxValue;
-                byte rval = GyroAnalogSliders ? sliderVal[1] : byte.MaxValue;
+                byte lval = settings.GyroAnalogSliders ? sliderVal[0] : byte.MaxValue;
+                byte rval = settings.GyroAnalogSliders ? sliderVal[1] : byte.MaxValue;
                 output.trigger_left_value = (byte)(buttons[(int)(isLeft ? ControllerButton.SHOULDER_2 : ControllerButton.SHOULDER2_2)] ? lval : 0);
                 output.trigger_right_value = (byte)(buttons[(int)(isLeft ? ControllerButton.SHOULDER2_2 : ControllerButton.SHOULDER_2)] ? rval : 0);
             }

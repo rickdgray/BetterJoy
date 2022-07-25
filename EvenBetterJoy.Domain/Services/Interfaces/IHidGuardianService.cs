@@ -3,6 +3,6 @@
     public interface IHidGuardianService
     {
         void Start();
-        void Stop()
+        void Stop();
     }
 }
