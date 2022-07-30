@@ -10,7 +10,7 @@ namespace EvenBetterJoy.Terminal
         private readonly IHostApplicationLifetime appLifetime;
         private readonly IEvenBetterJoyApplication evenBetterJoy;
 
-        private Task? appTask;
+        private Task appTask;
         private int? exitCode;
 
         public ApplicationHostedService(
