@@ -34,9 +34,9 @@ namespace EvenBetterJoy.Domain.Services
             hid_free_enumeration(deviceList);
         }
 
-        public IntPtr OpenDevice(string device)
+        public IntPtr OpenDevice(ushort vendorId, ushort productId, string serialNumber)
         {
-            return hid_open_path(device);
+            return hid_open(vendorId, productId, serialNumber);
         }
 
         public void CloseDevice(IntPtr device)
@@ -62,28 +62,20 @@ namespace EvenBetterJoy.Domain.Services
 
         [DllImport(DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern int hid_init();
-
         [DllImport(DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern int hid_exit();
-
         [DllImport(DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr hid_enumerate(ushort vendor_id, ushort product_id);
-
         [DllImport(DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern void hid_free_enumeration(IntPtr phid_device_info);
-
         [DllImport(DLL, CallingConvention = CallingConvention.Cdecl)]
-        private static extern IntPtr hid_open_path([MarshalAs(UnmanagedType.LPWStr)] string path);
-
+        private static extern IntPtr hid_open(ushort vendor_id, ushort product_id, [MarshalAs(UnmanagedType.LPWStr)] string serial_number);
         [DllImport(DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern int hid_write(IntPtr device, byte[] data, UIntPtr length);
-
         [DllImport(DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern int hid_read_timeout(IntPtr dev, byte[] data, UIntPtr length, int milliseconds);
-
         [DllImport(DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern int hid_set_nonblocking(IntPtr device, int nonblock);
-
         [DllImport(DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern void hid_close(IntPtr device);
     }

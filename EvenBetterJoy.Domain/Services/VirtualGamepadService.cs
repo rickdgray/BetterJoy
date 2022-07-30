@@ -17,15 +17,13 @@ namespace EvenBetterJoy.Domain.Services
 
         public void Start()
         {
-            return;
-            
             try
             {
                 virtualGamepad = new ViGEmClient();
             }
-            catch
+            catch (Exception ex)
             {
-                logger.LogError("Could not start VigemBus. Make sure drivers are installed correctly.");
+                logger.LogError(ex, "Failed to start virtual gamepad. Make sure drivers are installed correctly.");
             }
         }
 

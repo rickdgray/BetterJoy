@@ -4,7 +4,7 @@
     {
         IntPtr EnumerateDevice(ushort vendorId, ushort productId);
         void FreeDeviceList(IntPtr deviceList);
-        IntPtr OpenDevice(string device);
+        IntPtr OpenDevice(ushort vendorId, ushort productId, string serialNumber);
         void CloseDevice(IntPtr device);
         int Read(IntPtr device, byte[] data, UIntPtr length, int milliseconds);
         int Write(IntPtr device, byte[] data, UIntPtr length);

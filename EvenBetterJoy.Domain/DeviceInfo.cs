@@ -4,6 +4,7 @@ namespace EvenBetterJoy.Domain.Models
 {
     public struct DeviceInfo
     {
+        [Obsolete("Path is not documented or reliable. Maybe use serial number instead?")]
         [MarshalAs(UnmanagedType.LPStr)]
         public string path;
         public ushort vendor_id;
