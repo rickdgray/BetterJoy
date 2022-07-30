@@ -30,15 +30,21 @@ namespace EvenBetterJoy.Terminal
         System.Timers.Timer joyconPoller;
 
         private readonly IDeviceService deviceService;
+        private readonly ICommunicationService communicationService;
+        private readonly IVirtualGamepadService virtualGamepadService;
         private readonly ILogger logger;
         private readonly Settings settings;
 
         public JoyconManager(
             IDeviceService deviceService,
+            ICommunicationService communicationService,
+            IVirtualGamepadService virtualGamepadService,
             ILogger<JoyconManager> logger,
             IOptions<Settings> settings)
         {
             this.deviceService = deviceService;
+            this.communicationService = communicationService;
+            this.virtualGamepadService = virtualGamepadService;
             this.logger = logger;
             this.settings = settings.Value;
 
@@ -47,7 +53,6 @@ namespace EvenBetterJoy.Terminal
 
         public void Start()
         {
-            // check for new controllers every 2 seconds
             joyconPoller = new System.Timers.Timer(2000);
             joyconPoller.Elapsed += PollJoycons;
             joyconPoller.Start();
@@ -68,7 +73,7 @@ namespace EvenBetterJoy.Terminal
             var disconnectedJoycons = new List<Joycon>();
             foreach ((_, Joycon joycon) in joycons)
             {
-                if (joycon.state == ControllerState.DROPPED)
+                if (joycon.State == ControllerState.DROPPED)
                 {
                     if (joycon.Other != null)
                     {
@@ -203,8 +208,9 @@ namespace EvenBetterJoy.Terminal
                     bool isSnes = prod_id == SNES_CONTROLLER;
                     bool isN64 = prod_id == N64_CONTROLLER;
 
-                    var joycon = new Joycon(handle, EnableIMU, EnableLocalize & EnableIMU, 0.05f,
-                        isLeft, enumerate.path, enumerate.serial_number, joycons.Count, isPro, isSnes, isN64);
+                    var joycon = new Joycon(settings, deviceService, communicationService,
+                        virtualGamepadService.Get(), handle, EnableIMU, EnableLocalize & EnableIMU, 0.05f,
+                        isLeft, enumerate.path, enumerate.serial_number, joycons.Count, isPro, isSnes);
 
                     joycons.TryAdd(joycon.GetHashCode(), joycon);
 
@@ -286,7 +292,7 @@ namespace EvenBetterJoy.Terminal
             foreach ((_, Joycon joycon) in joycons)
             {
                 // Connect device straight away
-                if (joycon.state == ControllerState.NOT_ATTACHED)
+                if (joycon.State == ControllerState.NOT_ATTACHED)
                 {
                     if (joycon.out_xbox != null)
                     {
@@ -300,12 +306,12 @@ namespace EvenBetterJoy.Terminal
 
                     try
                     {
-                        deviceService.SetDeviceNonblocking(joycon.handle, 0);
+                        deviceService.SetDeviceNonblocking(joycon.Handle, 0);
                         joycon.Attach();
                     }
                     catch
                     {
-                        joycon.state = ControllerState.DROPPED;
+                        joycon.State = ControllerState.DROPPED;
                         continue;
                     }
 

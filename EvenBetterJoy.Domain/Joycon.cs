@@ -50,7 +50,7 @@ namespace EvenBetterJoy.Domain.Models
 
         public bool isLeft;
 
-        private ControllerState state;
+        public ControllerState State { get; set; }
         private ControllerDebugMode debugMode;
 
         private bool[] buttons_down = new bool[20];
@@ -62,7 +62,7 @@ namespace EvenBetterJoy.Domain.Models
         private float[] stick = { 0, 0 };
         private float[] stick2 = { 0, 0 };
 
-        private IntPtr handle;
+        public IntPtr Handle { get; set; }
 
         byte[] default_buf = { 0x0, 0x1, 0x40, 0x40, 0x0, 0x1, 0x40, 0x40 };
 
@@ -179,7 +179,7 @@ namespace EvenBetterJoy.Domain.Models
 
             serial_number = serialNum;
             activeData = new float[6];
-            handle = handle_;
+            Handle = handle_;
             imu_enabled = imu;
             do_localize = localize;
             rumble = new Rumble(new float[] { settings.LowFreqRumble, settings.HighFreqRumble, 0 });
@@ -270,7 +270,7 @@ namespace EvenBetterJoy.Domain.Models
 
         public int Attach()
         {
-            state = ControllerState.ATTACHED;
+            State = ControllerState.ATTACHED;
             
             if (isUSB)
             {
@@ -279,8 +279,8 @@ namespace EvenBetterJoy.Domain.Models
 
                 a[0] = 0x80;
                 a[1] = 0x1;
-                deviceService.Write(handle, a, new UIntPtr(2));
-                deviceService.Read(handle, a, new UIntPtr(64), 100);
+                deviceService.Write(Handle, a, new UIntPtr(2));
+                deviceService.Read(Handle, a, new UIntPtr(64), 100);
 
                 if (a[0] != 0x81)
                 {
@@ -302,26 +302,26 @@ namespace EvenBetterJoy.Domain.Models
                 // Handshake
                 a[0] = 0x80;
                 a[1] = 0x2;
-                deviceService.Write(handle, a, new UIntPtr(2));
-                deviceService.Read(handle, a, new UIntPtr(64), 100);
+                deviceService.Write(Handle, a, new UIntPtr(2));
+                deviceService.Read(Handle, a, new UIntPtr(64), 100);
 
                 // 3Mbit baud rate
                 a[0] = 0x80;
                 a[1] = 0x3;
-                deviceService.Write(handle, a, new UIntPtr(2));
-                deviceService.Read(handle, a, new UIntPtr(64), 100);
+                deviceService.Write(Handle, a, new UIntPtr(2));
+                deviceService.Read(Handle, a, new UIntPtr(64), 100);
 
                 // Handshake at new baud rate
                 a[0] = 0x80;
                 a[1] = 0x2;
-                deviceService.Write(handle, a, new UIntPtr(2));
-                deviceService.Read(handle, a, new UIntPtr(64), 100);
+                deviceService.Write(Handle, a, new UIntPtr(2));
+                deviceService.Read(Handle, a, new UIntPtr(64), 100);
 
                 // Prevent HID timeout
                 a[0] = 0x80;
                 a[1] = 0x4;
-                deviceService.Write(handle, a, new UIntPtr(2));
-                deviceService.Read(handle, a, new UIntPtr(64), 100);
+                deviceService.Write(Handle, a, new UIntPtr(2));
+                deviceService.Read(Handle, a, new UIntPtr(64), 100);
 
             }
 
@@ -358,7 +358,7 @@ namespace EvenBetterJoy.Domain.Models
             Subcommand(0x3, new byte[] { 0x30 }, 1);
             DebugPrint("Done with init.", ControllerDebugMode.COMMS);
 
-            deviceService.SetDeviceNonblocking(handle, 1);
+            deviceService.SetDeviceNonblocking(Handle, 1);
 
             return 0;
         }
@@ -400,11 +400,11 @@ namespace EvenBetterJoy.Domain.Models
 
         public void PowerOff()
         {
-            if (state > ControllerState.DROPPED)
+            if (State > ControllerState.DROPPED)
             {
-                deviceService.SetDeviceNonblocking(handle, 0);
+                deviceService.SetDeviceNonblocking(Handle, 0);
                 SetHCIState(0x00);
-                state = ControllerState.DROPPED;
+                State = ControllerState.DROPPED;
             }
         }
 
@@ -431,9 +431,9 @@ namespace EvenBetterJoy.Domain.Models
                 out_ds4.Disconnect();
             }
 
-            if (state > ControllerState.NO_JOYCONS)
+            if (State > ControllerState.NO_JOYCONS)
             {
-                deviceService.SetDeviceNonblocking(handle, 0);
+                deviceService.SetDeviceNonblocking(Handle, 0);
 
                 //Subcommand(0x40, new byte[] { 0x0 }, 1); // disable IMU sensor
                 //Subcommand(0x48, new byte[] { 0x0 }, 1); // Would turn off rumble?
@@ -443,30 +443,30 @@ namespace EvenBetterJoy.Domain.Models
                     // Allow device to talk to BT again
                     byte[] a = Enumerable.Repeat((byte)0, 64).ToArray();
                     a[0] = 0x80; a[1] = 0x5;
-                    deviceService.Write(handle, a, new UIntPtr(2));
+                    deviceService.Write(Handle, a, new UIntPtr(2));
                     a[0] = 0x80; a[1] = 0x6;
-                    deviceService.Write(handle, a, new UIntPtr(2));
+                    deviceService.Write(Handle, a, new UIntPtr(2));
                 }
             }
 
-            if (close || state > ControllerState.DROPPED)
+            if (close || State > ControllerState.DROPPED)
             {
-                deviceService.CloseDevice(handle);
+                deviceService.CloseDevice(Handle);
             }
 
-            state = ControllerState.NOT_ATTACHED;
+            State = ControllerState.NOT_ATTACHED;
         }
 
         private byte ts_en;
         private int ReceiveRaw()
         {
-            if (handle == IntPtr.Zero)
+            if (Handle == IntPtr.Zero)
             {
                 return -2;
             }
             
             var raw_buf = new byte[report_len];
-            var inboundData = deviceService.Read(handle, raw_buf, new UIntPtr(report_len), 5);
+            var inboundData = deviceService.Read(Handle, raw_buf, new UIntPtr(report_len), 5);
 
             if (inboundData > 0)
             {
@@ -860,7 +860,7 @@ namespace EvenBetterJoy.Domain.Models
         {
             polling = true;
             int attempts = 0;
-            while (polling & state > ControllerState.NO_JOYCONS)
+            while (polling & State > ControllerState.NO_JOYCONS)
             {
                 if (rumble.queue.Count > 0)
                 {
@@ -868,14 +868,14 @@ namespace EvenBetterJoy.Domain.Models
                 }
                 int a = ReceiveRaw();
 
-                if (a > 0 && state > ControllerState.DROPPED)
+                if (a > 0 && State > ControllerState.DROPPED)
                 {
-                    state = ControllerState.IMU_DATA_OK;
+                    State = ControllerState.IMU_DATA_OK;
                     attempts = 0;
                 }
                 else if (attempts > 240)
                 {
-                    state = ControllerState.DROPPED;
+                    State = ControllerState.DROPPED;
                     logger.LogInformation("Dropped.");
 
                     DebugPrint("Connection lost. Is the Joy-Con connected?", ControllerDebugMode.ALL);
@@ -1198,7 +1198,7 @@ namespace EvenBetterJoy.Domain.Models
 
         public void SetRumble(float low_freq, float high_freq, float amp)
         {
-            if (state <= ControllerState.ATTACHED)
+            if (State <= ControllerState.ATTACHED)
             {
                 return;
             }
@@ -1223,7 +1223,7 @@ namespace EvenBetterJoy.Domain.Models
 
             Array.Copy(buf, 0, buf_, 2, 8);
             PrintArray(buf_, ControllerDebugMode.RUMBLE, format: "Rumble data sent: {0:S}");
-            deviceService.Write(handle, buf_, new UIntPtr(report_len));
+            deviceService.Write(Handle, buf_, new UIntPtr(report_len));
         }
 
         private byte[] Subcommand(byte sc, byte[] buf, uint len, bool print = true)
@@ -1250,13 +1250,13 @@ namespace EvenBetterJoy.Domain.Models
                 PrintArray(buf_, ControllerDebugMode.COMMS, len, 11, "Subcommand 0x" + string.Format("{0:X2}", sc) + " sent. Data: 0x{0:S}");
             }
 
-            deviceService.Write(handle, buf_, new UIntPtr(len + 11));
+            deviceService.Write(Handle, buf_, new UIntPtr(len + 11));
 
             //TODO: does this really need to be a do while?
             int tries = 0;
             do
             {
-                int res = deviceService.Read(handle, response, new UIntPtr(report_len), 100);
+                int res = deviceService.Read(Handle, response, new UIntPtr(report_len), 100);
                 if (res < 1)
                 {
                     DebugPrint("No response.", ControllerDebugMode.COMMS);
@@ -1309,7 +1309,7 @@ namespace EvenBetterJoy.Domain.Models
                 return;
             }
 
-            deviceService.SetDeviceNonblocking(handle, 0);
+            deviceService.SetDeviceNonblocking(Handle, 0);
 
             byte[] buf_ = ReadSPI(0x80, isLeft ? (byte)0x12 : (byte)0x1d, 9);
             bool found = false;
@@ -1422,7 +1422,7 @@ namespace EvenBetterJoy.Domain.Models
                 PrintArray(gyr_neutral, len: 3, d: ControllerDebugMode.IMU, format: "Factory gyro neutral position: {0:S}");
             }
 
-            deviceService.SetDeviceNonblocking(handle, 1);
+            deviceService.SetDeviceNonblocking(Handle, 1);
         }
 
         private byte[] ReadSPI(byte addr1, byte addr2, uint len, bool print = false)

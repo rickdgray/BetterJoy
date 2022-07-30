@@ -1,6 +1,9 @@
 ﻿using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using EvenBetterJoy.Domain.Services;
+using EvenBetterJoy.Domain.Models;
 
 namespace EvenBetterJoy.Terminal
 {
@@ -14,7 +17,7 @@ namespace EvenBetterJoy.Terminal
                 .UseContentRoot(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location))
                 .ConfigureLogging(logging =>
                 {
-                    // TODO: add logger
+                    logging.AddConsole();
                 })
                 .ConfigureServices((context, services) =>
                 {

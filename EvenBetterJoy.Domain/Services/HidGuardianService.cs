@@ -25,6 +25,8 @@ namespace EvenBetterJoy.Domain.Services
 
         public void Start()
         {
+            return;
+            
             try
             {
                 var HidCerberusService = new ServiceController("HidCerberus Service");
@@ -69,6 +71,8 @@ namespace EvenBetterJoy.Domain.Services
 
         public void Stop()
         {
+            return;
+            
             try
             {
                 HttpWebResponse response = (HttpWebResponse)WebRequest.Create(@"http://localhost:26762/api/v1/hidguardian/whitelist/remove/" + pid).GetResponse();

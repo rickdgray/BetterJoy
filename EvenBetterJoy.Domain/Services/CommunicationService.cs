@@ -172,40 +172,40 @@ namespace EvenBetterJoy.Domain.Services
                     byte[] outputData = new byte[16];
                     for (byte i = 0; i < numPadRequests; i++)
                     {
-                        byte currRequest = localMsg[requestsIdx + i];
-                        var padData = controllers[i];//controllers[currRequest];
+                        //byte currRequest = localMsg[requestsIdx + i];
+                        //var padData = controllers[i];//controllers[currRequest];
 
-                        int outIdx = 0;
-                        Array.Copy(BitConverter.GetBytes((uint)ControllerMessageType.DSUS_PortInfo), 0, outputData, outIdx, 4);
-                        outIdx += 4;
+                        //int outIdx = 0;
+                        //Array.Copy(BitConverter.GetBytes((uint)ControllerMessageType.DSUS_PortInfo), 0, outputData, outIdx, 4);
+                        //outIdx += 4;
 
-                        outputData[outIdx++] = (byte)padData.PadId;
-                        outputData[outIdx++] = (byte)padData.constate;
-                        outputData[outIdx++] = (byte)padData.model;
-                        outputData[outIdx++] = (byte)padData.connection;
+                        //outputData[outIdx++] = (byte)padData.PadId;
+                        //outputData[outIdx++] = (byte)padData.constate;
+                        //outputData[outIdx++] = (byte)padData.model;
+                        //outputData[outIdx++] = (byte)padData.connection;
 
-                        var addressBytes = padData.PadMacAddress.GetAddressBytes();
-                        if (addressBytes.Length == 6)
-                        {
-                            outputData[outIdx++] = addressBytes[0];
-                            outputData[outIdx++] = addressBytes[1];
-                            outputData[outIdx++] = addressBytes[2];
-                            outputData[outIdx++] = addressBytes[3];
-                            outputData[outIdx++] = addressBytes[4];
-                            outputData[outIdx++] = addressBytes[5];
-                        }
-                        else
-                        {
-                            outputData[outIdx++] = 0;
-                            outputData[outIdx++] = 0;
-                            outputData[outIdx++] = 0;
-                            outputData[outIdx++] = 0;
-                            outputData[outIdx++] = 0;
-                            outputData[outIdx++] = 0;
-                        }
+                        //var addressBytes = padData.PadMacAddress.GetAddressBytes();
+                        //if (addressBytes.Length == 6)
+                        //{
+                        //    outputData[outIdx++] = addressBytes[0];
+                        //    outputData[outIdx++] = addressBytes[1];
+                        //    outputData[outIdx++] = addressBytes[2];
+                        //    outputData[outIdx++] = addressBytes[3];
+                        //    outputData[outIdx++] = addressBytes[4];
+                        //    outputData[outIdx++] = addressBytes[5];
+                        //}
+                        //else
+                        //{
+                        //    outputData[outIdx++] = 0;
+                        //    outputData[outIdx++] = 0;
+                        //    outputData[outIdx++] = 0;
+                        //    outputData[outIdx++] = 0;
+                        //    outputData[outIdx++] = 0;
+                        //    outputData[outIdx++] = 0;
+                        //}
 
-                        outputData[outIdx++] = (byte)padData.battery;//(byte)padData.BatteryStatus;
-                        outputData[outIdx++] = 0;
+                        //outputData[outIdx++] = (byte)padData.battery;//(byte)padData.BatteryStatus;
+                        //outputData[outIdx++] = 0;
 
                         SendPacket(clientEP, outputData, 1001);
                     }
@@ -296,6 +296,9 @@ namespace EvenBetterJoy.Domain.Services
 
         public void Start()
         {
+            //TODO: finish fixing later
+            return;
+            
             var ip = settings.IpAddress;
             var port = settings.Port;
 
@@ -337,6 +340,8 @@ namespace EvenBetterJoy.Domain.Services
 
         public void Stop()
         {
+            return;
+            
             running = false;
             if (socket != null)
             {
@@ -347,173 +352,177 @@ namespace EvenBetterJoy.Domain.Services
 
         private bool ReportToBuffer(Joycon hidReport, byte[] outputData, ref int outIdx)
         {
-            var ds4 = Joycon.MapToDualShock4Input(hidReport);
-
-            outputData[outIdx] = 0;
-
-            if (ds4.dPad == Controller.DpadDirection.West || ds4.dPad == Controller.DpadDirection.Northwest || ds4.dPad == Controller.DpadDirection.Southwest)
-            {
-                outputData[outIdx] |= 0x80;
-            }
-
-            if (ds4.dPad == Controller.DpadDirection.South || ds4.dPad == Controller.DpadDirection.Southwest || ds4.dPad == Controller.DpadDirection.Southeast)
-            {
-                outputData[outIdx] |= 0x40;
-            }
-
-            if (ds4.dPad == Controller.DpadDirection.East || ds4.dPad == Controller.DpadDirection.Northeast || ds4.dPad == Controller.DpadDirection.Southeast)
-            {
-                outputData[outIdx] |= 0x20;
-            }
-
-            if (ds4.dPad == Controller.DpadDirection.North || ds4.dPad == Controller.DpadDirection.Northwest || ds4.dPad == Controller.DpadDirection.Northeast)
-            {
-                outputData[outIdx] |= 0x10;
-            }
-
-            if (ds4.options)
-            {
-                outputData[outIdx] |= 0x08;
-            }
-
-            if (ds4.thumb_right)
-            {
-                outputData[outIdx] |= 0x04;
-            }
-
-            if (ds4.thumb_left)
-            {
-                outputData[outIdx] |= 0x02;
-            }
-
-            if (ds4.share)
-            {
-                outputData[outIdx] |= 0x01;
-            }
-
-            outputData[++outIdx] = 0;
-
-            if (ds4.square)
-            {
-                outputData[outIdx] |= 0x80;
-            }
-
-            if (ds4.cross)
-            {
-                outputData[outIdx] |= 0x40;
-            }
-
-            if (ds4.circle)
-            {
-                outputData[outIdx] |= 0x20;
-            }
-
-            if (ds4.triangle)
-            {
-                outputData[outIdx] |= 0x10;
-            }
-
-            if (ds4.shoulder_right)
-            {
-                outputData[outIdx] |= 0x08;
-            }
-
-            if (ds4.shoulder_left)
-            {
-                outputData[outIdx] |= 0x04;
-            }
-
-            if (ds4.trigger_right_value == byte.MaxValue)
-            {
-                outputData[outIdx] |= 0x02;
-            }
-
-            if (ds4.trigger_left_value == byte.MaxValue)
-            {
-                outputData[outIdx] |= 0x01;
-            }
-
-            outputData[++outIdx] = ds4.ps ? (byte)1 : (byte)0;
-            outputData[++outIdx] = ds4.touchpad ? (byte)1 : (byte)0;
-
-            outputData[++outIdx] = ds4.thumb_left_x;
-            outputData[++outIdx] = ds4.thumb_left_y;
-            outputData[++outIdx] = ds4.thumb_right_x;
-            outputData[++outIdx] = ds4.thumb_right_y;
-
-            //we don't have analog buttons so just use the Button enums (which give either 0 or 0xFF)
-            outputData[++outIdx] = (ds4.dPad == Controller.DpadDirection.West || ds4.dPad == Controller.DpadDirection.Northwest || ds4.dPad == Controller.DpadDirection.Southwest) ? (byte)0xFF : (byte)0;
-            outputData[++outIdx] = (ds4.dPad == Controller.DpadDirection.South || ds4.dPad == Controller.DpadDirection.Southwest || ds4.dPad == Controller.DpadDirection.Southeast) ? (byte)0xFF : (byte)0;
-            outputData[++outIdx] = (ds4.dPad == Controller.DpadDirection.East || ds4.dPad == Controller.DpadDirection.Northeast || ds4.dPad == Controller.DpadDirection.Southeast) ? (byte)0xFF : (byte)0;
-            outputData[++outIdx] = (ds4.dPad == Controller.DpadDirection.North || ds4.dPad == Controller.DpadDirection.Northwest || ds4.dPad == Controller.DpadDirection.Northeast) ? (byte)0xFF : (byte)0; ;
-
-            outputData[++outIdx] = ds4.square ? (byte)0xFF : (byte)0;
-            outputData[++outIdx] = ds4.cross ? (byte)0xFF : (byte)0;
-            outputData[++outIdx] = ds4.circle ? (byte)0xFF : (byte)0;
-            outputData[++outIdx] = ds4.triangle ? (byte)0xFF : (byte)0;
-
-            outputData[++outIdx] = ds4.shoulder_right ? (byte)0xFF : (byte)0;
-            outputData[++outIdx] = ds4.shoulder_left ? (byte)0xFF : (byte)0;
-
-            outputData[++outIdx] = ds4.trigger_right_value;
-            outputData[++outIdx] = ds4.trigger_left_value;
-
-            outIdx++;
-
-            //DS4 only: touchpad points
-            for (int i = 0; i < 2; i++)
-            {
-                outIdx += 6;
-            }
-
-            //motion timestamp
-            Array.Copy(BitConverter.GetBytes(hidReport.Timestamp), 0, outputData, outIdx, 8);
-            outIdx += 8;
-
-            //accelerometer
-            {
-                var accel = hidReport.GetAccel();
-                //TODO: is the check or the get function wrong here?
-                if (accel != null)
-                {
-                    Array.Copy(BitConverter.GetBytes(accel.Y), 0, outputData, outIdx, 4);
-                    outIdx += 4;
-                    Array.Copy(BitConverter.GetBytes(-accel.Z), 0, outputData, outIdx, 4);
-                    outIdx += 4;
-                    Array.Copy(BitConverter.GetBytes(accel.X), 0, outputData, outIdx, 4);
-                    outIdx += 4;
-                }
-                else
-                {
-                    outIdx += 12;
-                    logger.LogWarning("No accelerometer reported.");
-                }
-            }
-
-            //gyroscope
-            {
-                var gyro = hidReport.GetGyro();
-                if (gyro != null)
-                {
-                    Array.Copy(BitConverter.GetBytes(gyro.Y), 0, outputData, outIdx, 4);
-                    outIdx += 4;
-                    Array.Copy(BitConverter.GetBytes(gyro.Z), 0, outputData, outIdx, 4);
-                    outIdx += 4;
-                    Array.Copy(BitConverter.GetBytes(gyro.X), 0, outputData, outIdx, 4);
-                    outIdx += 4;
-                }
-                else
-                {
-                    outIdx += 12;
-                    logger.LogWarning("No gyroscope reported.");
-                }
-            }
-
             return true;
+            
+            //var ds4 = Joycon.MapToDualShock4Input(hidReport);
+
+            //outputData[outIdx] = 0;
+
+            //if (ds4.dPad == Controller.DpadDirection.West || ds4.dPad == Controller.DpadDirection.Northwest || ds4.dPad == Controller.DpadDirection.Southwest)
+            //{
+            //    outputData[outIdx] |= 0x80;
+            //}
+
+            //if (ds4.dPad == Controller.DpadDirection.South || ds4.dPad == Controller.DpadDirection.Southwest || ds4.dPad == Controller.DpadDirection.Southeast)
+            //{
+            //    outputData[outIdx] |= 0x40;
+            //}
+
+            //if (ds4.dPad == Controller.DpadDirection.East || ds4.dPad == Controller.DpadDirection.Northeast || ds4.dPad == Controller.DpadDirection.Southeast)
+            //{
+            //    outputData[outIdx] |= 0x20;
+            //}
+
+            //if (ds4.dPad == Controller.DpadDirection.North || ds4.dPad == Controller.DpadDirection.Northwest || ds4.dPad == Controller.DpadDirection.Northeast)
+            //{
+            //    outputData[outIdx] |= 0x10;
+            //}
+
+            //if (ds4.options)
+            //{
+            //    outputData[outIdx] |= 0x08;
+            //}
+
+            //if (ds4.thumb_right)
+            //{
+            //    outputData[outIdx] |= 0x04;
+            //}
+
+            //if (ds4.thumb_left)
+            //{
+            //    outputData[outIdx] |= 0x02;
+            //}
+
+            //if (ds4.share)
+            //{
+            //    outputData[outIdx] |= 0x01;
+            //}
+
+            //outputData[++outIdx] = 0;
+
+            //if (ds4.square)
+            //{
+            //    outputData[outIdx] |= 0x80;
+            //}
+
+            //if (ds4.cross)
+            //{
+            //    outputData[outIdx] |= 0x40;
+            //}
+
+            //if (ds4.circle)
+            //{
+            //    outputData[outIdx] |= 0x20;
+            //}
+
+            //if (ds4.triangle)
+            //{
+            //    outputData[outIdx] |= 0x10;
+            //}
+
+            //if (ds4.shoulder_right)
+            //{
+            //    outputData[outIdx] |= 0x08;
+            //}
+
+            //if (ds4.shoulder_left)
+            //{
+            //    outputData[outIdx] |= 0x04;
+            //}
+
+            //if (ds4.trigger_right_value == byte.MaxValue)
+            //{
+            //    outputData[outIdx] |= 0x02;
+            //}
+
+            //if (ds4.trigger_left_value == byte.MaxValue)
+            //{
+            //    outputData[outIdx] |= 0x01;
+            //}
+
+            //outputData[++outIdx] = ds4.ps ? (byte)1 : (byte)0;
+            //outputData[++outIdx] = ds4.touchpad ? (byte)1 : (byte)0;
+
+            //outputData[++outIdx] = ds4.thumb_left_x;
+            //outputData[++outIdx] = ds4.thumb_left_y;
+            //outputData[++outIdx] = ds4.thumb_right_x;
+            //outputData[++outIdx] = ds4.thumb_right_y;
+
+            ////we don't have analog buttons so just use the Button enums (which give either 0 or 0xFF)
+            //outputData[++outIdx] = (ds4.dPad == Controller.DpadDirection.West || ds4.dPad == Controller.DpadDirection.Northwest || ds4.dPad == Controller.DpadDirection.Southwest) ? (byte)0xFF : (byte)0;
+            //outputData[++outIdx] = (ds4.dPad == Controller.DpadDirection.South || ds4.dPad == Controller.DpadDirection.Southwest || ds4.dPad == Controller.DpadDirection.Southeast) ? (byte)0xFF : (byte)0;
+            //outputData[++outIdx] = (ds4.dPad == Controller.DpadDirection.East || ds4.dPad == Controller.DpadDirection.Northeast || ds4.dPad == Controller.DpadDirection.Southeast) ? (byte)0xFF : (byte)0;
+            //outputData[++outIdx] = (ds4.dPad == Controller.DpadDirection.North || ds4.dPad == Controller.DpadDirection.Northwest || ds4.dPad == Controller.DpadDirection.Northeast) ? (byte)0xFF : (byte)0; ;
+
+            //outputData[++outIdx] = ds4.square ? (byte)0xFF : (byte)0;
+            //outputData[++outIdx] = ds4.cross ? (byte)0xFF : (byte)0;
+            //outputData[++outIdx] = ds4.circle ? (byte)0xFF : (byte)0;
+            //outputData[++outIdx] = ds4.triangle ? (byte)0xFF : (byte)0;
+
+            //outputData[++outIdx] = ds4.shoulder_right ? (byte)0xFF : (byte)0;
+            //outputData[++outIdx] = ds4.shoulder_left ? (byte)0xFF : (byte)0;
+
+            //outputData[++outIdx] = ds4.trigger_right_value;
+            //outputData[++outIdx] = ds4.trigger_left_value;
+
+            //outIdx++;
+
+            ////DS4 only: touchpad points
+            //for (int i = 0; i < 2; i++)
+            //{
+            //    outIdx += 6;
+            //}
+
+            ////motion timestamp
+            //Array.Copy(BitConverter.GetBytes(hidReport.Timestamp), 0, outputData, outIdx, 8);
+            //outIdx += 8;
+
+            ////accelerometer
+            //{
+            //    var accel = hidReport.GetAccel();
+            //    //TODO: is the check or the get function wrong here?
+            //    if (accel != null)
+            //    {
+            //        Array.Copy(BitConverter.GetBytes(accel.Y), 0, outputData, outIdx, 4);
+            //        outIdx += 4;
+            //        Array.Copy(BitConverter.GetBytes(-accel.Z), 0, outputData, outIdx, 4);
+            //        outIdx += 4;
+            //        Array.Copy(BitConverter.GetBytes(accel.X), 0, outputData, outIdx, 4);
+            //        outIdx += 4;
+            //    }
+            //    else
+            //    {
+            //        outIdx += 12;
+            //        logger.LogWarning("No accelerometer reported.");
+            //    }
+            //}
+
+            ////gyroscope
+            //{
+            //    var gyro = hidReport.GetGyro();
+            //    if (gyro != null)
+            //    {
+            //        Array.Copy(BitConverter.GetBytes(gyro.Y), 0, outputData, outIdx, 4);
+            //        outIdx += 4;
+            //        Array.Copy(BitConverter.GetBytes(gyro.Z), 0, outputData, outIdx, 4);
+            //        outIdx += 4;
+            //        Array.Copy(BitConverter.GetBytes(gyro.X), 0, outputData, outIdx, 4);
+            //        outIdx += 4;
+            //    }
+            //    else
+            //    {
+            //        outIdx += 12;
+            //        logger.LogWarning("No gyroscope reported.");
+            //    }
+            //}
+
+            //return true;
         }
 
         public void NewReportIncoming(Joycon hidReport)
         {
+            return;
+            
             if (!running)
             {
                 return;

@@ -17,6 +17,8 @@ namespace EvenBetterJoy.Domain.Services
 
         public void Start()
         {
+            return;
+            
             try
             {
                 virtualGamepad = new ViGEmClient();
