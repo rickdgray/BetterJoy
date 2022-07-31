@@ -3,10 +3,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using EvenBetterJoy.Domain;
-using EvenBetterJoy.Domain.Services;
-using EvenBetterJoy.Domain.Models;
+using EvenBetterJoy.Domain.Communication;
 using EvenBetterJoy.Domain.Hid;
 using EvenBetterJoy.Domain.VirtualController;
+using EvenBetterJoy.Domain.Models;
+using EvenBetterJoy.Domain.HidHide;
 
 namespace EvenBetterJoy
 {
@@ -26,11 +27,10 @@ namespace EvenBetterJoy
                     services
                         .AddHostedService<EvenBetterJoy>()
                         .AddTransient<IHidService, HidService>()
+                        .AddTransient<IHidHideService, HidHideService>()
                         .AddSingleton<IJoyconManager, JoyconManager>()
                         .AddSingleton<IVirtualControllerService, VirtualControllerService>()
-                        .AddSingleton<IHidGuardianService, HidGuardianService>()
-                        .AddSingleton<ICommunicationService, CommunicationService>()
-                        .AddSingleton<ISettingsService, SettingsService>();
+                        .AddSingleton<ICommunicationService, CommunicationService>();
 
                     services
                         .AddOptions<Settings>()

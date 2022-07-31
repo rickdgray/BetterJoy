@@ -1,6 +1,6 @@
 ﻿using EvenBetterJoy.Domain.Models;
 
-namespace EvenBetterJoy.Domain.Services
+namespace EvenBetterJoy.Domain.Communication
 {
     public interface ICommunicationService
     {

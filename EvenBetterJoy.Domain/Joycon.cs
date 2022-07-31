@@ -5,7 +5,7 @@ using System.Net.NetworkInformation;
 using System.Numerics;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 using Nefarius.ViGEm.Client;
-using EvenBetterJoy.Domain.Services;
+using EvenBetterJoy.Domain.Communication;
 using EvenBetterJoy.Domain.Hid;
 using EvenBetterJoy.Domain.VirtualController;
 
@@ -53,8 +53,6 @@ namespace EvenBetterJoy.Domain.Models
         public bool active_gyro = false;
 
         private long inactivity = Stopwatch.GetTimestamp();
-
-        public bool send = true;
         
         private bool[] buttons_down = new bool[20];
         private bool[] buttons_up = new bool[20];
@@ -65,7 +63,7 @@ namespace EvenBetterJoy.Domain.Models
         private float[] stick = { 0, 0 };
         private float[] stick2 = { 0, 0 };
 
-        byte[] default_buf = { 0x0, 0x1, 0x40, 0x40, 0x0, 0x1, 0x40, 0x40 };
+        private byte[] default_buf = { 0x0, 0x1, 0x40, 0x40, 0x0, 0x1, 0x40, 0x40 };
 
         private byte[] stick_raw = { 0, 0, 0 };
         private ushort[] stick_cal = { 0, 0, 0, 0, 0, 0 };
@@ -214,16 +212,6 @@ namespace EvenBetterJoy.Domain.Models
             }
         }
 
-        public Vector3 GetGyro()
-        {
-            return gyr_g;
-        }
-
-        public Vector3 GetAccel()
-        {
-            return acc_g;
-        }
-
         public void Attach()
         {
             LoadCalibrationData();
@@ -247,7 +235,7 @@ namespace EvenBetterJoy.Domain.Models
             Subcommand(0x30, new byte[] { leds }, 1);
         }
 
-        public void BlinkHomeLight()
+        private void BlinkHomeLight()
         {
             byte[] a = Enumerable.Repeat((byte)0xFF, 25).ToArray();
             a[0] = 0x18;
@@ -358,7 +346,7 @@ namespace EvenBetterJoy.Domain.Models
                     communicationService.NewReportIncoming(this);
                 }
 
-                virtualController.UpdateInput(MapToXbox360Input(this));
+                virtualController.UpdateInput(MapToVirtualControllerInput(this));
 
                 ts_en = data[1];
             }
@@ -720,15 +708,7 @@ namespace EvenBetterJoy.Domain.Models
                         SendRumble(rumble.GetData());
                     }
 
-                    if (ReceiveRaw())
-                    {
-                        State = ControllerState.IMU_DATA_OK;
-                        attempts = 0;
-                    }
-                    else
-                    {
-                        attempts++;
-                    }
+                    attempts = ReceiveRaw() ? 0 : attempts + 1;
                 }
             }, cancellationToken ?? CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
@@ -1015,7 +995,7 @@ namespace EvenBetterJoy.Domain.Models
             return (byte)Math.Max(byte.MinValue, Math.Min(byte.MaxValue, 127 - stick_value * byte.MaxValue));
         }
 
-        public void SetRumble(float low_freq, float high_freq, float amp)
+        private void SetRumble(float low_freq, float high_freq, float amp)
         {
             if (State <= ControllerState.ATTACHED)
             {
@@ -1242,7 +1222,7 @@ namespace EvenBetterJoy.Domain.Models
             return read_buf;
         }
 
-        private VirtualControllerState MapToXbox360Input(Joycon input)
+        private VirtualControllerState MapToVirtualControllerInput(Joycon input)
         {
             var output = new VirtualControllerState();
             var other = input.Other;

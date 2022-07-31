@@ -6,6 +6,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="CommunicationService\Crc32_NET LICENSE" />
+    <None Remove="HidHide\LICENSE" />
+    <None Remove="Hid\LICENSE" />
+    <None Remove="CommunicationService\LICENSE" />
+    <None Remove="VirtualController\LICENSE" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="hidapi.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -16,6 +24,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="6.0.0" />
     <PackageReference Include="Nefarius.ViGEm.Client" Version="1.17.183" />
+    <PackageReference Include="PInvoke.Kernel32" Version="0.7.124" />
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="6.0.0" />
   </ItemGroup>
 

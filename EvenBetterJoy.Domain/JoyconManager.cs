@@ -1,9 +1,10 @@
 ﻿using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
-using EvenBetterJoy.Domain.Services;
+using EvenBetterJoy.Domain.Communication;
 using EvenBetterJoy.Domain.Models;
 using EvenBetterJoy.Domain.Hid;
 using EvenBetterJoy.Domain.VirtualController;
+using EvenBetterJoy.Domain.HidHide;
 
 namespace EvenBetterJoy.Domain
 {
@@ -12,7 +13,7 @@ namespace EvenBetterJoy.Domain
         private readonly Dictionary<string, Joycon> joycons;
 
         private readonly IHidService hidService;
-        private readonly IHidGuardianService hidGuardianService;
+        private readonly IHidHideService hidHideService;
         private readonly ICommunicationService communicationService;
         private readonly IVirtualControllerService virtualControllerService;
         private readonly ILogger logger;
@@ -21,7 +22,7 @@ namespace EvenBetterJoy.Domain
 
         public JoyconManager(
             IHidService hidService,
-            IHidGuardianService hidGuardianService,
+            IHidHideService hidHideService,
             ICommunicationService communicationService,
             IVirtualControllerService virtualControllerService,
             ILogger<JoyconManager> logger,
@@ -29,13 +30,13 @@ namespace EvenBetterJoy.Domain
             IServiceProvider serviceProvider)
         {
             this.hidService = hidService;
-            this.hidGuardianService = hidGuardianService;
+            this.hidHideService = hidHideService;
             this.communicationService = communicationService;
             this.virtualControllerService = virtualControllerService;
             this.logger = logger;
             this.settings = settings.Value;
 
-            //hold reference to pass to joycons since they are not dependency injected
+            //hold logger reference to pass to joycons since they are not dependency injected
             joyconLogger = serviceProvider.GetService(typeof(ILogger<Joycon>)) as ILogger<Joycon>;
 
             joycons = new Dictionary<string, Joycon>();
@@ -91,13 +92,10 @@ namespace EvenBetterJoy.Domain
                 {
                     continue;
                 }
-
-                if (settings.UseHidg)
-                {
-                    //TODO: revisit this later; try not to use path
-                    //hidGuardianService.Block(current.path);
-                }
                 
+                //TODO: get path from hid service
+                //hidHideService.Block(devicePath);
+
                 var newJoycon = new Joycon(
                     hidService, communicationService, virtualControllerService.Get(),
                     joyconLogger, settings, productId, serialNumber, joycons.Count);

@@ -1,11 +1,10 @@
 ﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using EvenBetterJoy.Domain;
-using EvenBetterJoy.Domain.Services;
-using EvenBetterJoy.Domain.Models;
 using EvenBetterJoy.Domain.Hid;
 using EvenBetterJoy.Domain.VirtualController;
+using EvenBetterJoy.Domain.HidHide;
+using EvenBetterJoy.Domain.Communication;
 
 namespace EvenBetterJoy
 {
@@ -13,28 +12,25 @@ namespace EvenBetterJoy
     {
         private readonly IJoyconManager joyconManager;
         private readonly IHidService hidService;
-        private readonly IHidGuardianService hidGuardianService;
+        private readonly IHidHideService hidHideService;
         private readonly IVirtualControllerService virtualControllerService;
         private readonly ICommunicationService communicationService;
         private readonly ILogger logger;
-        private readonly Settings settings;
 
         public EvenBetterJoy(
             IJoyconManager joyconManager,
             IHidService hidService,
-            IHidGuardianService hidGuardianService,
+            IHidHideService hidHideService,
             IVirtualControllerService virtualControllerService,
             ICommunicationService communicationService,
-            ILogger<EvenBetterJoy> logger,
-            IOptions<Settings> settings)
+            ILogger<EvenBetterJoy> logger)
         {
             this.joyconManager = joyconManager;
             this.hidService = hidService;
-            this.hidGuardianService = hidGuardianService;
+            this.hidHideService = hidHideService;
             this.virtualControllerService = virtualControllerService;
             this.communicationService = communicationService;
             this.logger = logger;
-            this.settings = settings.Value;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -42,12 +38,6 @@ namespace EvenBetterJoy
             logger.LogDebug("Starting application.");
             hidService.Initialize();
             virtualControllerService.Start();
-
-            if (settings.UseHidg)
-            {
-                logger.LogInformation("HidGuardian is enabled.");
-                hidGuardianService.Start();
-            }
 
             communicationService.Start();
 
@@ -60,12 +50,8 @@ namespace EvenBetterJoy
         {
             logger.LogDebug("Stopping application.");
             hidService.CleanUp();
-
-            if (settings.UseHidg)
-            {
-                hidGuardianService.Stop();
-            }
-
+            //TODO: unblock all
+            //hidHideService.Unblock();
             communicationService.Stop();
             joyconManager.Stop(cancellationToken);
 

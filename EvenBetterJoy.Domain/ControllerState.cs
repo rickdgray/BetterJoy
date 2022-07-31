@@ -4,8 +4,6 @@
     {
         NOT_ATTACHED,
         DROPPED,
-        ATTACHED,
-        INPUT_MODE_0x30,
-        IMU_DATA_OK,
+        ATTACHED
     }
 }

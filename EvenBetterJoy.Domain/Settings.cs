@@ -5,7 +5,6 @@ namespace EvenBetterJoy.Domain.Models
     public class Settings
     {
         public int ControllerScanRate { get; set; }
-        public bool UseHidg { get; set; }
         public bool MotionServer { get; set; }
         public bool StartInTray { get; set; }
         //TODO: probably can switch off array here
