@@ -2,8 +2,7 @@
 {
     public interface IJoyconManager
     {
-        void CheckForNewControllers();
-        void Stop();
-        void Start();
+        void Start(CancellationToken cancellationToken);
+        void Stop(CancellationToken cancellationToken);
     }
 }

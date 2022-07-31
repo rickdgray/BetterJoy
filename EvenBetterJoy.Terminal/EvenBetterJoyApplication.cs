@@ -34,7 +34,7 @@ namespace EvenBetterJoy.Terminal
             this.settings = settings.Value;
         }
 
-        public void Start()
+        public void Start(CancellationToken cancellationToken)
         {
             hidService.Initialize();
 
@@ -49,15 +49,14 @@ namespace EvenBetterJoy.Terminal
                 virtualGamepadService.Start();
             }
 
-            joyconManager.CheckForNewControllers();
-            joyconManager.Start();
+            joyconManager.Start(cancellationToken);
 
             communicationService.Start();
 
             logger.LogInformation("All systems go.");
         }
 
-        public void Stop()
+        public void Stop(CancellationToken cancellationToken)
         {
             hidService.CleanUp();
 
@@ -67,7 +66,7 @@ namespace EvenBetterJoy.Terminal
             }
 
             communicationService.Stop();
-            joyconManager.Stop();
+            joyconManager.Stop(cancellationToken);
         }
     }
 }

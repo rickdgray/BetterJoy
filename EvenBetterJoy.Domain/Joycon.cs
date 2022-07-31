@@ -13,8 +13,6 @@ namespace EvenBetterJoy.Domain.Models
 {
     public class Joycon
     {
-        public string path = string.Empty;
-
         private Joycon _other = null;
         public Joycon Other
         {
@@ -108,7 +106,6 @@ namespace EvenBetterJoy.Domain.Models
         private Rumble rumble;
 
         private byte global_count = 0;
-        private string debug_str;
 
         // For UdpServer
         public int PadId = 0;
@@ -157,16 +154,16 @@ namespace EvenBetterJoy.Domain.Models
 
         private float[] activeData;
         private GyroHelper gyroHelper;
-        
+
         private readonly IHidService deviceService;
         private readonly ICommunicationService communicationService;
         private readonly ViGEmClient client;
         private readonly ILogger logger;
         private readonly Settings settings;
-        
+
         public Joycon(IHidService deviceService, ICommunicationService communicationService,
             ViGEmClient client, ILogger logger, Settings settings, IntPtr handle, bool imu,
-            bool localize, ControllerType controllerType, string serialNum, int id)
+            bool localize, ControllerType type, string serialNum, int id)
         {
             this.deviceService = deviceService;
             this.communicationService = communicationService;
@@ -177,9 +174,9 @@ namespace EvenBetterJoy.Domain.Models
             Handle = handle;
             imu_enabled = imu;
             do_localize = localize;
-            this.Type = controllerType;
+            Type = type;
             serial_number = serialNum;
-            
+
             activeData = new float[6];
 
             byte[] mac = new byte[6];
@@ -200,7 +197,7 @@ namespace EvenBetterJoy.Domain.Models
 
             PadId = id;
             LED = (byte)(0x1 << PadId);
-            
+
             connection = 0x02;
 
             if (settings.ShowAsXInput)
@@ -226,7 +223,6 @@ namespace EvenBetterJoy.Domain.Models
 
         public void ReceiveRumble(Xbox360FeedbackReceivedEventArgs e)
         {
-            DebugPrint("Rumble data Recived: XInput", ControllerDebugMode.RUMBLE);
             SetRumble(settings.LowFreqRumble, settings.HighFreqRumble, Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
 
             if (Other != null && Other != this)
@@ -237,27 +233,11 @@ namespace EvenBetterJoy.Domain.Models
 
         public void Ds4_FeedbackReceived(DualShock4FeedbackReceivedEventArgs e)
         {
-            DebugPrint("Rumble data Recived: DS4", ControllerDebugMode.RUMBLE);
             SetRumble(settings.LowFreqRumble, settings.HighFreqRumble, Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
 
             if (Other != null && Other != this)
             {
                 Other.SetRumble(settings.LowFreqRumble, settings.HighFreqRumble, Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
-            }
-        }
-
-        public void DebugPrint(string message, ControllerDebugMode debugMode)
-        {
-            // if joycon debug mode is none, just force no messages
-            if (this.debugMode == ControllerDebugMode.NONE)
-            {
-                return;
-            }
-
-            // otherwise, if message is mode all or of the same type, print
-            if (debugMode == ControllerDebugMode.ALL || this.debugMode == debugMode || this.debugMode == ControllerDebugMode.ALL)
-            {
-                logger.LogDebug(message);
             }
         }
 
@@ -283,7 +263,6 @@ namespace EvenBetterJoy.Domain.Models
             Subcommand(0x48, new byte[] { 0x01 }, 1);
 
             Subcommand(0x3, new byte[] { 0x30 }, 1);
-            DebugPrint("Done with init.", ControllerDebugMode.COMMS);
 
             deviceService.SetDeviceNonblocking(Handle);
 
@@ -380,7 +359,7 @@ namespace EvenBetterJoy.Domain.Models
             {
                 throw new NullReferenceException("Joycon handle is null");
             }
-            
+
             var data = deviceService.Read(Handle, 5);
 
             if (data.Length > 0)
@@ -407,7 +386,7 @@ namespace EvenBetterJoy.Domain.Models
                             BatteryChanged();
                         }
                     }
-                    
+
                     Timestamp += 5000;
                     packetCounter++;
 
@@ -439,15 +418,7 @@ namespace EvenBetterJoy.Domain.Models
                     }
                 }
 
-                //TODO: why filter out snes only? possibly because gyro related?
-                if (ts_en == data[1] && Type != ControllerType.SNES_CONTROLLER)
-                {
-                    logger.LogTrace("Duplicate timestamp enqueued.");
-                    DebugPrint(string.Format("Duplicate timestamp enqueued. TS: {0:X2}", ts_en), ControllerDebugMode.THREADING);
-                }
-
                 ts_en = data[1];
-                DebugPrint(string.Format("Enqueue. Bytes read: {0:D}. Timestamp: {1:X2}", data, data[1]), ControllerDebugMode.THREADING);
             }
 
             return true;
@@ -522,7 +493,7 @@ namespace EvenBetterJoy.Domain.Models
                 buttons[button] |= buttons[origin];
             }
         }
-        
+
         long lastDoubleClick = -1;
         byte[] sliderVal = new byte[] { 0, 0 };
         private void DoThingsWithButtons()
@@ -593,12 +564,12 @@ namespace EvenBetterJoy.Domain.Models
             {
                 Simulate(settings.Capture);
             }
-            
+
             if (buttons_down[(int)ControllerButton.HOME])
             {
                 Simulate(settings.Home);
             }
-            
+
             SimulateContinous((int)ControllerButton.CAPTURE, settings.Capture);
             SimulateContinous((int)ControllerButton.HOME, settings.Home);
 
@@ -608,17 +579,17 @@ namespace EvenBetterJoy.Domain.Models
                 {
                     Simulate(settings.LeftJoyconL, false, false);
                 }
-                
+
                 if (buttons_up[(int)ControllerButton.SL])
                 {
                     Simulate(settings.LeftJoyconL, false, true);
                 }
-                
+
                 if (buttons_down[(int)ControllerButton.SR])
                 {
                     Simulate(settings.LeftJoyconR, false, false);
                 }
-                
+
                 if (buttons_up[(int)ControllerButton.SR])
                 {
                     Simulate(settings.LeftJoyconR, false, true);
@@ -633,12 +604,12 @@ namespace EvenBetterJoy.Domain.Models
                 {
                     Simulate(settings.RightJoyconL, false, false);
                 }
-                
+
                 if (buttons_up[(int)ControllerButton.SL])
                 {
                     Simulate(settings.RightJoyconL, false, true);
                 }
-                
+
                 if (buttons_down[(int)ControllerButton.SR])
                 {
                     Simulate(settings.RightJoyconR, false, false);
@@ -661,7 +632,7 @@ namespace EvenBetterJoy.Domain.Models
             {
                 ControllerButton leftT = Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER_2 : ControllerButton.SHOULDER2_2;
                 ControllerButton rightT = Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER2_2 : ControllerButton.SHOULDER_2;
-                
+
                 Joycon left = Type == ControllerType.LEFT_JOYCON ? this : (Type == ControllerType.PRO_CONTROLLER ? this : Other);
                 Joycon right = Type != ControllerType.LEFT_JOYCON ? this : (Type == ControllerType.PRO_CONTROLLER ? this : Other);
 
@@ -786,15 +757,21 @@ namespace EvenBetterJoy.Domain.Models
             Task.Factory.StartNew(() =>
             {
                 logger.LogInformation($"Started listening to {serial_number}.");
-                
+
                 var attempts = 0;
                 while (true)
                 {
+                    if (tokenSource.IsCancellationRequested)
+                    {
+                        logger.LogInformation($"Stopped listening to {serial_number}.");
+                        return;
+                    }
+
                     if (attempts > 240)
                     {
                         State = ControllerState.DROPPED;
-                        logger.LogInformation($"Dropped joycon {serial_number ?? string.Empty}.");
-                        break;
+                        logger.LogInformation($"Dropped joycon {serial_number}.");
+                        return;
                     }
 
                     //TODO: this rumble logic should be handled in the same function below
@@ -938,12 +915,12 @@ namespace EvenBetterJoy.Domain.Models
                         {
                             buttons_up[i] = down_[i] & !buttons[i];
                             buttons_down[i] = !down_[i] & buttons[i];
-                            
+
                             if (down_[i] != buttons[i])
                             {
                                 buttons_down_timestamp[i] = buttons[i] ? timestamp : -1;
                             }
-                            
+
                             if (buttons_up[i] || buttons_down[i])
                             {
                                 changed = true;
@@ -1085,7 +1062,7 @@ namespace EvenBetterJoy.Domain.Models
 
             s[0] = dx / (dx > 0 ? t[0] : t[4]);
             s[1] = dy / (dy > 0 ? t[1] : t[5]);
-            
+
             return s;
         }
 
@@ -1126,11 +1103,10 @@ namespace EvenBetterJoy.Domain.Models
             }
 
             Array.Copy(buf, 0, buf_, 2, 8);
-            PrintArray(buf_, ControllerDebugMode.RUMBLE, format: "Rumble data sent: {0:S}");
             deviceService.Write(Handle, buf_);
         }
 
-        private byte[] Subcommand(byte sc, byte[] buf, uint len, bool print = true)
+        private byte[] Subcommand(byte sc, byte[] buf, int len)
         {
             byte[] buf_ = new byte[Constants.REPORT_LENGTH];
             Array.Copy(default_buf, 0, buf_, 2, 8);
@@ -1148,11 +1124,6 @@ namespace EvenBetterJoy.Domain.Models
                 global_count++;
             }
 
-            if (print)
-            {
-                PrintArray(buf_, ControllerDebugMode.COMMS, len, 11, "Subcommand 0x" + string.Format("{0:X2}", sc) + " sent. Data: 0x{0:S}");
-            }
-
             //TODO: I don't like this +11 hardcoded, but can it be calculated?
             deviceService.Write(Handle, buf_, len + 11);
 
@@ -1162,15 +1133,6 @@ namespace EvenBetterJoy.Domain.Models
             do
             {
                 data = deviceService.Read(Handle, 100);
-                if (data.Length == 0)
-                {
-                    DebugPrint("No response.", ControllerDebugMode.COMMS);
-                }
-                else if (print)
-                {
-                    PrintArray(data, ControllerDebugMode.COMMS, Constants.REPORT_LENGTH - 1, 1, "Response ID 0x" + string.Format("{0:X2}", data[0]) + ". Data: 0x{0:S}");
-                }
-
                 tries++;
             } while (tries < 10 && data[0] != 0x21 && data[14] != sc);
 
@@ -1241,8 +1203,6 @@ namespace EvenBetterJoy.Domain.Models
             stick_cal[Type == ControllerType.LEFT_JOYCON ? 4 : 0] = (ushort)((buf_[7] << 8) & 0xF00 | buf_[6]); // X Axis Min below center
             stick_cal[Type == ControllerType.LEFT_JOYCON ? 5 : 1] = (ushort)((buf_[8] << 4) | (buf_[7] >> 4));  // Y Axis Min below center
 
-            PrintArray(stick_cal, len: 6, start: 0, format: "Stick calibration data: {0:S}");
-
             if (Type == ControllerType.PRO_CONTROLLER)
             {
                 buf_ = ReadSPI(0x80, Type != ControllerType.LEFT_JOYCON ? (byte)0x12 : (byte)0x1d, 9);
@@ -1269,8 +1229,6 @@ namespace EvenBetterJoy.Domain.Models
                 stick2_cal[Type != ControllerType.LEFT_JOYCON ? 3 : 5] = (ushort)((buf_[5] << 4) | (buf_[4] >> 4));  // Y Axis Center
                 stick2_cal[Type != ControllerType.LEFT_JOYCON ? 4 : 0] = (ushort)((buf_[7] << 8) & 0xF00 | buf_[6]); // X Axis Min below center
                 stick2_cal[Type != ControllerType.LEFT_JOYCON ? 5 : 1] = (ushort)((buf_[8] << 4) | (buf_[7] >> 4));  // Y Axis Min below center
-
-                PrintArray(stick2_cal, len: 6, start: 0, format: "Stick calibration data: {0:S}");
 
                 buf_ = ReadSPI(0x60, Type != ControllerType.LEFT_JOYCON ? (byte)0x86 : (byte)0x98, 16);
                 deadzone2 = (ushort)((buf_[4] << 8) & 0xF00 | buf_[3]);
@@ -1299,8 +1257,6 @@ namespace EvenBetterJoy.Domain.Models
             gyr_sensiti[1] = (short)(buf_[2] | ((buf_[3] << 8) & 0xff00));
             gyr_sensiti[2] = (short)(buf_[4] | ((buf_[5] << 8) & 0xff00));
 
-            PrintArray(gyr_neutral, len: 3, d: ControllerDebugMode.IMU, format: "User gyro neutral position: {0:S}");
-
             // This is an extremely messy way of checking to see whether there is user stick calibration data present, but I've seen conflicting user calibration data on blank Joy-Cons. Worth another look eventually.
             if (gyr_neutral[0] + gyr_neutral[1] + gyr_neutral[2] == -3 || Math.Abs(gyr_neutral[0]) > 100 || Math.Abs(gyr_neutral[1]) > 100 || Math.Abs(gyr_neutral[2]) > 100)
             {
@@ -1323,14 +1279,12 @@ namespace EvenBetterJoy.Domain.Models
                 gyr_sensiti[0] = (short)(buf_[0] | ((buf_[1] << 8) & 0xff00));
                 gyr_sensiti[1] = (short)(buf_[2] | ((buf_[3] << 8) & 0xff00));
                 gyr_sensiti[2] = (short)(buf_[4] | ((buf_[5] << 8) & 0xff00));
-
-                PrintArray(gyr_neutral, len: 3, d: ControllerDebugMode.IMU, format: "Factory gyro neutral position: {0:S}");
             }
 
             deviceService.SetDeviceNonblocking(Handle);
         }
 
-        private byte[] ReadSPI(byte addr1, byte addr2, uint len, bool print = false)
+        private byte[] ReadSPI(byte addr1, byte addr2, uint len)
         {
             byte[] buf = { addr2, addr1, 0x00, 0x00, (byte)len };
             byte[] read_buf = new byte[len];
@@ -1338,7 +1292,7 @@ namespace EvenBetterJoy.Domain.Models
 
             for (int i = 0; i < 100; ++i)
             {
-                buf_ = Subcommand(0x10, buf, 5, false);
+                buf_ = Subcommand(0x10, buf, 5);
                 if (buf_[15] == addr2 && buf_[16] == addr1)
                 {
                     break;
@@ -1347,33 +1301,7 @@ namespace EvenBetterJoy.Domain.Models
 
             Array.Copy(buf_, 20, read_buf, 0, len);
 
-            if (print)
-            {
-                PrintArray(read_buf, ControllerDebugMode.COMMS, len);
-            }
-
             return read_buf;
-        }
-
-        private void PrintArray<T>(T[] arr, ControllerDebugMode d = ControllerDebugMode.NONE, uint len = 0, uint start = 0, string format = "{0:S}")
-        {
-            if (d != debugMode && debugMode != ControllerDebugMode.ALL)
-            {
-                return;
-            }
-
-            if (len == 0)
-            {
-                len = (uint)arr.Length;
-            }
-
-            string tostr = "";
-            for (int i = 0; i < len; ++i)
-            {
-                tostr += string.Format((arr[0] is byte) ? "{0:X2} " : ((arr[0] is float) ? "{0:F} " : "{0:D} "), arr[i + start]);
-            }
-
-            DebugPrint(string.Format(format, tostr), d);
         }
 
         private OutputControllerXbox360InputState MapToXbox360Input(Joycon input)

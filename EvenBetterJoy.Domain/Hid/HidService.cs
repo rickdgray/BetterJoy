@@ -37,29 +37,44 @@ namespace EvenBetterJoy.Domain.Hid
             logger.LogInformation("HidApi cleaned up.");
         }
 
-        public IntPtr GetDeviceInfoListHead()
+        public List<Tuple<int, string>> GetAllNintendoControllers()
         {
-            return hid_enumerate(NINTENDO, ALL);
+            var allControllers = new List<Tuple<int, string>>();
+
+            var deviceListHead = hid_enumerate(NINTENDO, ALL);
+            var currentDevice = deviceListHead;
+            while (currentDevice != IntPtr.Zero)
+            {
+                var current = (DeviceInfo)Marshal.PtrToStructure(currentDevice, typeof(DeviceInfo));
+                if (current.serial_number != null)
+                {
+                    allControllers.Add(new Tuple<int, string>(current.product_id, current.serial_number));
+                }
+
+                currentDevice = current.next;
+            }
+
+            hid_free_enumeration(deviceListHead);
+
+            return allControllers;
         }
 
-        public void ReleaseDeviceInfoList(IntPtr deviceList)
+        public IntPtr OpenDevice(int productId, string serialNumber)
         {
-            hid_free_enumeration(deviceList);
+            return hid_open(NINTENDO, Convert.ToUInt16(productId), serialNumber);
         }
 
-        public DeviceInfo GetDeviceInfo(IntPtr device)
+        public void Write(IntPtr device, byte[] data, int? length = null)
         {
-            return (DeviceInfo)Marshal.PtrToStructure(device, typeof(DeviceInfo));
-        }
+            if (length == null)
+            {
+                //TODO: see if we can just do this
+                //length = data.Length;
 
-        public IntPtr OpenDevice(ushort productId, string serialNumber)
-        {
-            return hid_open(NINTENDO, productId, serialNumber);
-        }
+                length = Constants.REPORT_LENGTH;
+            }
 
-        public void Write(IntPtr device, byte[] data, uint? length = null)
-        {
-            if (hid_write(device, data, new UIntPtr(length ?? Constants.REPORT_LENGTH)) == -1)
+            if (hid_write(device, data, new UIntPtr(Convert.ToUInt16(length))) == -1)
             {
                 throw new Exception(GetError(device));
             }
@@ -71,7 +86,7 @@ namespace EvenBetterJoy.Domain.Hid
             var data = new byte[Constants.REPORT_LENGTH];
             if (milliseconds.HasValue)
             {
-                if (hid_read_timeout(device, data, new UIntPtr(Constants.REPORT_LENGTH), milliseconds.Value) == -1)
+                if (hid_read_timeout(device, data, new UIntPtr(Convert.ToUInt16(Constants.REPORT_LENGTH)), milliseconds.Value) == -1)
                 {
                     throw new Exception(GetError(device));
                 }
@@ -79,7 +94,7 @@ namespace EvenBetterJoy.Domain.Hid
                 return data;
             }
 
-            if (hid_read(device, data, new UIntPtr(Constants.REPORT_LENGTH)) == -1)
+            if (hid_read(device, data, new UIntPtr(Convert.ToUInt16(Constants.REPORT_LENGTH))) == -1)
             {
                 throw new Exception(GetError(device));
             }

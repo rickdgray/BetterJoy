@@ -42,12 +42,12 @@ namespace EvenBetterJoy.Terminal
                 {
                     try
                     {
-                        evenBetterJoy.Start();
+                        evenBetterJoy.Start(cancellationTokenSource.Token);
                         exitCode = 0;
                     }
                     catch (TaskCanceledException)
                     {
-                        // User fired cancellation, just eat exception
+                        // cancellation fired, just eat exception
                     }
                     catch (Exception ex)
                     {
@@ -77,6 +77,8 @@ namespace EvenBetterJoy.Terminal
             {
                 await appTask;
             }
+
+            evenBetterJoy.Stop(cancellationToken);
 
             logger.LogDebug($"Exiting with return code: {exitCode}");
             Environment.ExitCode = exitCode.GetValueOrDefault(-1);

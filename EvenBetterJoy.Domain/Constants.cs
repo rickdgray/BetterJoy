@@ -2,6 +2,6 @@
 {
     public static class Constants
     {
-        public static uint REPORT_LENGTH => 49;
+        public static int REPORT_LENGTH => 49;
     }
 }

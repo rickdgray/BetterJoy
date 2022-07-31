@@ -2,7 +2,7 @@
 {
     internal interface IEvenBetterJoyApplication
     {
-        void Start();
-        void Stop();
+        void Start(CancellationToken cancellationToken);
+        void Stop(CancellationToken cancellationToken);
     }
 }

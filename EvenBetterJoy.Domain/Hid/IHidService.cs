@@ -4,11 +4,9 @@
     {
         void Initialize();
         void CleanUp();
-        IntPtr GetDeviceInfoListHead();
-        void ReleaseDeviceInfoList(IntPtr deviceListHead);
-        DeviceInfo GetDeviceInfo(IntPtr device);
-        IntPtr OpenDevice(ushort productId, string serialNumber);
-        void Write(IntPtr device, byte[] data, uint? length = null);
+        List<Tuple<int, string>> GetAllNintendoControllers();
+        IntPtr OpenDevice(int productId, string serialNumber);
+        void Write(IntPtr device, byte[] data, int? length = null);
         byte[] Read(IntPtr device, int? milliseconds = null);
         void SetDeviceNonblocking(IntPtr device, bool enable = true);
         void CloseDevice(IntPtr device);

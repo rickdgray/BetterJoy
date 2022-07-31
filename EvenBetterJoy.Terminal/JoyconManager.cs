@@ -17,7 +17,7 @@ namespace EvenBetterJoy.Terminal
 
         System.Timers.Timer joyconPoller;
 
-        private readonly IHidService deviceService;
+        private readonly IHidService hidService;
         private readonly IHidGuardianService hidGuardianService;
         private readonly ICommunicationService communicationService;
         private readonly IVirtualGamepadService virtualGamepadService;
@@ -26,7 +26,7 @@ namespace EvenBetterJoy.Terminal
         private readonly Settings settings;
 
         public JoyconManager(
-            IHidService deviceService,
+            IHidService hidService,
             IHidGuardianService hidGuardianService,
             ICommunicationService communicationService,
             IVirtualGamepadService virtualGamepadService,
@@ -34,7 +34,7 @@ namespace EvenBetterJoy.Terminal
             IOptions<Settings> settings,
             IServiceProvider serviceProvider)
         {
-            this.deviceService = deviceService;
+            this.hidService = hidService;
             this.hidGuardianService = hidGuardianService;
             this.communicationService = communicationService;
             this.virtualGamepadService = virtualGamepadService;
@@ -47,7 +47,7 @@ namespace EvenBetterJoy.Terminal
             joycons = new ConcurrentDictionary<string, Joycon>();
         }
 
-        public void Start()
+        public void Start(CancellationToken cancellationToken)
         {
             joyconPoller = new System.Timers.Timer(2000);
             joyconPoller.Elapsed += PollJoycons;
@@ -56,7 +56,7 @@ namespace EvenBetterJoy.Terminal
 
         private void PollJoycons(object source, ElapsedEventArgs e)
         {
-            CleanUp();
+            CleanUpDropped();
 
             if (settings.ProgressiveScan)
             {
@@ -64,7 +64,7 @@ namespace EvenBetterJoy.Terminal
             }
         }
 
-        private void CleanUp()
+        private void CleanUpDropped()
         {
             var disconnectedJoycons = new List<Joycon>();
             foreach ((_, Joycon joycon) in joycons)
@@ -92,54 +92,38 @@ namespace EvenBetterJoy.Terminal
 
         public void CheckForNewControllers()
         {
-            var deviceListHead = deviceService.GetDeviceInfoListHead();
-            
-            bool foundNew = false;
-            var currentDevice = deviceListHead;
-            while (currentDevice != IntPtr.Zero)
+            var foundNew = false;
+            foreach ((var productId, var serialNumber) in hidService.GetAllNintendoControllers())
             {
-                var current = deviceService.GetDeviceInfo(currentDevice);
-
-                var controllerType = (ControllerType)current.product_id;
+                var controllerType = (ControllerType)productId;
                 if (controllerType == ControllerType.UNKNOWN)
                 {
-                    currentDevice = current.next;
                     continue;
                 }
 
-                //TODO: this check may be unnecessary
-                if (current.serial_number == null)
+                if (joycons.ContainsKey(serialNumber))
                 {
-                    currentDevice = current.next;
-                    continue;
-                }
-                
-                if (joycons.ContainsKey(current.serial_number))
-                {
-                    currentDevice = current.next;
                     continue;
                 }
 
                 if (settings.UseHidg)
                 {
-                    hidGuardianService.Block(current.path);
+                    //TODO: revisit this later; try not to use path
+                    //hidGuardianService.Block(current.path);
                 }
 
-                var handle = deviceService.OpenDevice(current.product_id, current.serial_number);
+                var handle = hidService.OpenDevice(productId, serialNumber);
                 if (handle == IntPtr.Zero)
                 {
                     logger.LogError("Unable to open device.");
-                    currentDevice = current.next;
                     continue;
                 }
 
-                deviceService.SetDeviceNonblocking(handle);
-                
-                foundNew = foundNew || joycons.TryAdd(current.serial_number, new Joycon(deviceService, communicationService,
-                    virtualGamepadService.Get(), joyconLogger, settings, handle, EnableIMU, EnableLocalize & EnableIMU,
-                    controllerType, current.serial_number, joycons.Count));
+                hidService.SetDeviceNonblocking(handle);
 
-                currentDevice = current.next;
+                foundNew = foundNew || joycons.TryAdd(serialNumber, new Joycon(hidService, communicationService,
+                    virtualGamepadService.Get(), joyconLogger, settings, handle, EnableIMU, EnableLocalize & EnableIMU,
+                    controllerType, serialNumber, joycons.Count));
             }
 
             if (foundNew)
@@ -209,8 +193,6 @@ namespace EvenBetterJoy.Terminal
                 }
             }
 
-            deviceService.ReleaseDeviceInfoList(deviceListHead);
-
             foreach ((_, Joycon joycon) in joycons)
             {
                 if (joycon.State == ControllerState.NOT_ATTACHED)
@@ -227,7 +209,7 @@ namespace EvenBetterJoy.Terminal
 
                     try
                     {
-                        deviceService.SetDeviceNonblocking(joycon.Handle, false);
+                        hidService.SetDeviceNonblocking(joycon.Handle, false);
                         joycon.Attach();
                     }
                     catch
@@ -242,7 +224,7 @@ namespace EvenBetterJoy.Terminal
             }
         }
 
-        public void Stop()
+        public void Stop(CancellationToken cancellationToken)
         {
             foreach ((_, Joycon joycon) in joycons)
             {
