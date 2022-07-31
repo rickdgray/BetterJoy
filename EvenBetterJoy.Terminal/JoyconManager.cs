@@ -1,10 +1,10 @@
 ﻿using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
-using System.Runtime.InteropServices;
 using System.Timers;
 using EvenBetterJoy.Domain.Services;
 using EvenBetterJoy.Domain.Models;
+using EvenBetterJoy.Domain.Hid;
 
 namespace EvenBetterJoy.Terminal
 {
@@ -13,13 +13,11 @@ namespace EvenBetterJoy.Terminal
         public bool EnableIMU = true;
         public bool EnableLocalize = false;
 
-        private const ushort NINTENDO = 0x57e;
-
         private readonly ConcurrentDictionary<string, Joycon> joycons;
 
         System.Timers.Timer joyconPoller;
 
-        private readonly IDeviceService deviceService;
+        private readonly IHidService deviceService;
         private readonly IHidGuardianService hidGuardianService;
         private readonly ICommunicationService communicationService;
         private readonly IVirtualGamepadService virtualGamepadService;
@@ -28,7 +26,7 @@ namespace EvenBetterJoy.Terminal
         private readonly Settings settings;
 
         public JoyconManager(
-            IDeviceService deviceService,
+            IHidService deviceService,
             IHidGuardianService hidGuardianService,
             ICommunicationService communicationService,
             IVirtualGamepadService virtualGamepadService,
@@ -94,61 +92,54 @@ namespace EvenBetterJoy.Terminal
 
         public void CheckForNewControllers()
         {
-            IntPtr ptr = deviceService.EnumerateDevice(0x0, 0x0);
-            IntPtr top_ptr = ptr;
+            var deviceListHead = deviceService.GetDeviceInfoListHead();
             
-            DeviceInfo currentDevice;
             bool foundNew = false;
-            while (ptr != IntPtr.Zero)
+            var currentDevice = deviceListHead;
+            while (currentDevice != IntPtr.Zero)
             {
-                currentDevice = (DeviceInfo)Marshal.PtrToStructure(ptr, typeof(DeviceInfo));
+                var current = deviceService.GetDeviceInfo(currentDevice);
 
-                if (currentDevice.vendor_id != NINTENDO)
-                {
-                    ptr = currentDevice.next;
-                    continue;
-                }
-
-                var controllerType = (ControllerType)currentDevice.product_id;
+                var controllerType = (ControllerType)current.product_id;
                 if (controllerType == ControllerType.UNKNOWN)
                 {
-                    ptr = currentDevice.next;
+                    currentDevice = current.next;
                     continue;
                 }
 
                 //TODO: this check may be unnecessary
-                if (currentDevice.serial_number == null)
+                if (current.serial_number == null)
                 {
-                    ptr = currentDevice.next;
+                    currentDevice = current.next;
                     continue;
                 }
                 
-                if (joycons.ContainsKey(currentDevice.serial_number))
+                if (joycons.ContainsKey(current.serial_number))
                 {
-                    ptr = currentDevice.next;
+                    currentDevice = current.next;
                     continue;
                 }
 
                 if (settings.UseHidg)
                 {
-                    hidGuardianService.Block(currentDevice.path);
+                    hidGuardianService.Block(current.path);
                 }
 
-                var handle = deviceService.OpenDevice(currentDevice.vendor_id, currentDevice.product_id, currentDevice.serial_number);
+                var handle = deviceService.OpenDevice(current.product_id, current.serial_number);
                 if (handle == IntPtr.Zero)
                 {
                     logger.LogError("Unable to open device.");
-                    ptr = currentDevice.next;
+                    currentDevice = current.next;
                     continue;
                 }
 
-                deviceService.SetDeviceNonblocking(handle, 1);
+                deviceService.SetDeviceNonblocking(handle);
                 
-                foundNew = foundNew || joycons.TryAdd(currentDevice.serial_number, new Joycon(deviceService, communicationService,
+                foundNew = foundNew || joycons.TryAdd(current.serial_number, new Joycon(deviceService, communicationService,
                     virtualGamepadService.Get(), joyconLogger, settings, handle, EnableIMU, EnableLocalize & EnableIMU,
-                    controllerType, currentDevice.serial_number, joycons.Count));
+                    controllerType, current.serial_number, joycons.Count));
 
-                ptr = currentDevice.next;
+                currentDevice = current.next;
             }
 
             if (foundNew)
@@ -211,7 +202,7 @@ namespace EvenBetterJoy.Terminal
                 }
             }
 
-            deviceService.FreeDeviceList(top_ptr);
+            deviceService.ReleaseDeviceInfoLinkedList(deviceListHead);
 
             foreach ((_, Joycon joycon) in joycons)
             {
@@ -230,7 +221,7 @@ namespace EvenBetterJoy.Terminal
 
                     try
                     {
-                        deviceService.SetDeviceNonblocking(joycon.Handle, 0);
+                        deviceService.SetDeviceNonblocking(joycon.Handle, false);
                         joycon.Attach();
                     }
                     catch

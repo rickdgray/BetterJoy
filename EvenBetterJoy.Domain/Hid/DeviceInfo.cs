@@ -1,10 +1,10 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace EvenBetterJoy.Domain.Models
+namespace EvenBetterJoy.Domain.Hid
 {
     public struct DeviceInfo
     {
-        [Obsolete("Path is not documented or reliable. Maybe use serial number instead?")]
+        [Obsolete("Path is not well documented or reliable")]
         [MarshalAs(UnmanagedType.LPStr)]
         public string path;
         public ushort vendor_id;

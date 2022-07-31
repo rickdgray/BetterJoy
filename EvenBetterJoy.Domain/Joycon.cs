@@ -7,6 +7,7 @@ using Nefarius.ViGEm.Client.Targets.Xbox360;
 using Nefarius.ViGEm.Client.Targets.DualShock4;
 using Nefarius.ViGEm.Client;
 using EvenBetterJoy.Domain.Services;
+using EvenBetterJoy.Domain.Hid;
 
 namespace EvenBetterJoy.Domain.Models
 {
@@ -103,7 +104,6 @@ namespace EvenBetterJoy.Domain.Models
 
         private bool do_localize;
         private float filterweight;
-        private const uint report_len = 49;
 
         private Rumble rumble;
 
@@ -158,13 +158,13 @@ namespace EvenBetterJoy.Domain.Models
         private float[] activeData;
         private GyroHelper gyroHelper;
         
-        private readonly IDeviceService deviceService;
+        private readonly IHidService deviceService;
         private readonly ICommunicationService communicationService;
         private readonly ViGEmClient client;
         private readonly ILogger logger;
         private readonly Settings settings;
         
-        public Joycon(IDeviceService deviceService, ICommunicationService communicationService,
+        public Joycon(IHidService deviceService, ICommunicationService communicationService,
             ViGEmClient client, ILogger logger, Settings settings, IntPtr handle, bool imu,
             bool localize, ControllerType controllerType, string serialNum, int id)
         {
@@ -284,7 +284,7 @@ namespace EvenBetterJoy.Domain.Models
             Subcommand(0x3, new byte[] { 0x30 }, 1);
             DebugPrint("Done with init.", ControllerDebugMode.COMMS);
 
-            deviceService.SetDeviceNonblocking(Handle, 1);
+            deviceService.SetDeviceNonblocking(Handle);
 
             State = ControllerState.ATTACHED;
         }
@@ -328,7 +328,7 @@ namespace EvenBetterJoy.Domain.Models
         {
             if (State > ControllerState.DROPPED)
             {
-                deviceService.SetDeviceNonblocking(Handle, 0);
+                deviceService.SetDeviceNonblocking(Handle, false);
                 SetHCIState(0x00);
                 State = ControllerState.DROPPED;
             }
@@ -359,9 +359,9 @@ namespace EvenBetterJoy.Domain.Models
 
             if (State > ControllerState.NO_JOYCONS)
             {
-                deviceService.SetDeviceNonblocking(Handle, 0);
+                deviceService.SetDeviceNonblocking(Handle, false);
 
-                //TODO: what was this for
+                //TODO: this was already commented out; what was it for?
                 //Subcommand(0x40, new byte[] { 0x0 }, 1); // disable IMU sensor
                 //Subcommand(0x48, new byte[] { 0x0 }, 1); // Would turn off rumble?
             }
@@ -382,28 +382,27 @@ namespace EvenBetterJoy.Domain.Models
                 return -2;
             }
             
-            var raw_buf = new byte[report_len];
-            var inboundData = deviceService.Read(Handle, raw_buf, new UIntPtr(report_len), 5);
+            var data = deviceService.Read(Handle, 5);
 
-            if (inboundData > 0)
+            if (data.Length > 0)
             {
                 // Process packets as soon as they come
                 for (var n = 0; n < 3; n++)
                 {
-                    ExtractIMUValues(raw_buf, n);
+                    ExtractIMUValues(data, n);
 
-                    var lag = (byte)Math.Max(0, raw_buf[1] - ts_en - 3);
+                    var lag = (byte)Math.Max(0, data[1] - ts_en - 3);
                     if (n == 0)
                     {
                         // add lag once
                         Timestamp += (ulong)lag * 5000;
-                        ProcessButtonsAndStick(raw_buf);
+                        ProcessButtonsAndStick(data);
 
                         // process buttons here to have them affect DS4
                         DoThingsWithButtons();
 
                         int newbat = battery;
-                        battery = (raw_buf[2] >> 4) / 2;
+                        battery = (data[2] >> 4) / 2;
                         if (newbat != battery)
                         {
                             BatteryChanged();
@@ -442,17 +441,17 @@ namespace EvenBetterJoy.Domain.Models
                 }
 
                 //TODO: why filter out snes only? possibly because gyro related?
-                if (ts_en == raw_buf[1] && Type != ControllerType.SNES_CONTROLLER)
+                if (ts_en == data[1] && Type != ControllerType.SNES_CONTROLLER)
                 {
                     logger.LogTrace("Duplicate timestamp enqueued.");
                     DebugPrint(string.Format("Duplicate timestamp enqueued. TS: {0:X2}", ts_en), ControllerDebugMode.THREADING);
                 }
 
-                ts_en = raw_buf[1];
-                DebugPrint(string.Format("Enqueue. Bytes read: {0:D}. Timestamp: {1:X2}", inboundData, raw_buf[1]), ControllerDebugMode.THREADING);
+                ts_en = data[1];
+                DebugPrint(string.Format("Enqueue. Bytes read: {0:D}. Timestamp: {1:X2}", data, data[1]), ControllerDebugMode.THREADING);
             }
 
-            return inboundData;
+            return data.Length;
         }
 
         Dictionary<int, bool> mouse_toggle_btn = new Dictionary<int, bool>();
@@ -1134,7 +1133,7 @@ namespace EvenBetterJoy.Domain.Models
 
         private void SendRumble(byte[] buf)
         {
-            var buf_ = new byte[report_len];
+            var buf_ = new byte[Constants.REPORT_LENGTH];
             buf_[0] = 0x10;
             buf_[1] = global_count;
 
@@ -1149,13 +1148,12 @@ namespace EvenBetterJoy.Domain.Models
 
             Array.Copy(buf, 0, buf_, 2, 8);
             PrintArray(buf_, ControllerDebugMode.RUMBLE, format: "Rumble data sent: {0:S}");
-            deviceService.Write(Handle, buf_, new UIntPtr(report_len));
+            deviceService.Write(Handle, buf_);
         }
 
         private byte[] Subcommand(byte sc, byte[] buf, uint len, bool print = true)
         {
-            byte[] buf_ = new byte[report_len];
-            byte[] response = new byte[report_len];
+            byte[] buf_ = new byte[Constants.REPORT_LENGTH];
             Array.Copy(default_buf, 0, buf_, 2, 8);
             Array.Copy(buf, 0, buf_, 11, len);
             buf_[10] = sc;
@@ -1176,26 +1174,28 @@ namespace EvenBetterJoy.Domain.Models
                 PrintArray(buf_, ControllerDebugMode.COMMS, len, 11, "Subcommand 0x" + string.Format("{0:X2}", sc) + " sent. Data: 0x{0:S}");
             }
 
-            deviceService.Write(Handle, buf_, new UIntPtr(len + 11));
+            //TODO: I don't like this +11 hardcoded, but can it be calculated?
+            deviceService.Write(Handle, buf_, len + 11);
 
             //TODO: does this really need to be a do while?
-            int tries = 0;
+            byte[] data;
+            var tries = 0;
             do
             {
-                int res = deviceService.Read(Handle, response, new UIntPtr(report_len), 100);
-                if (res < 1)
+                data = deviceService.Read(Handle, 100);
+                if (data.Length == 0)
                 {
                     DebugPrint("No response.", ControllerDebugMode.COMMS);
                 }
                 else if (print)
                 {
-                    PrintArray(response, ControllerDebugMode.COMMS, report_len - 1, 1, "Response ID 0x" + string.Format("{0:X2}", response[0]) + ". Data: 0x{0:S}");
+                    PrintArray(data, ControllerDebugMode.COMMS, Constants.REPORT_LENGTH - 1, 1, "Response ID 0x" + string.Format("{0:X2}", data[0]) + ". Data: 0x{0:S}");
                 }
 
                 tries++;
-            } while (tries < 10 && response[0] != 0x21 && response[14] != sc);
+            } while (tries < 10 && data[0] != 0x21 && data[14] != sc);
 
-            return response;
+            return data;
         }
 
         private void LoadCalibrationData()
@@ -1235,7 +1235,7 @@ namespace EvenBetterJoy.Domain.Models
                 return;
             }
 
-            deviceService.SetDeviceNonblocking(Handle, 0);
+            deviceService.SetDeviceNonblocking(Handle, false);
 
             byte[] buf_ = ReadSPI(0x80, Type == ControllerType.LEFT_JOYCON ? (byte)0x12 : (byte)0x1d, 9);
             bool found = false;
@@ -1348,7 +1348,7 @@ namespace EvenBetterJoy.Domain.Models
                 PrintArray(gyr_neutral, len: 3, d: ControllerDebugMode.IMU, format: "Factory gyro neutral position: {0:S}");
             }
 
-            deviceService.SetDeviceNonblocking(Handle, 1);
+            deviceService.SetDeviceNonblocking(Handle);
         }
 
         private byte[] ReadSPI(byte addr1, byte addr2, uint len, bool print = false)
