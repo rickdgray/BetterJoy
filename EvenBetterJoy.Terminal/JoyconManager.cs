@@ -144,39 +144,46 @@ namespace EvenBetterJoy.Terminal
 
             if (foundNew)
             {
-                // attempt to auto join-up joycons on connection
-                Joycon temp = null;
+                //TODO: switch this to a queue to handle finding same-handed joycons
+                Joycon unjoined = null;
                 foreach ((_, Joycon joycon) in joycons)
                 {
-                    // Do not attach two controllers if they are either:
-                    // - Not a Joycon
-                    // - Already attached to another Joycon (that isn't itself)
+                    // skip if not a joycon
                     if (joycon.Type != ControllerType.LEFT_JOYCON && joycon.Type != ControllerType.RIGHT_JOYCON)
                     {
                         continue;
                     }
 
-                    if (joycon.Other != null && joycon.Other != joycon)
+                    // skip if already joined
+                    if (joycon.Other != null)
+                    {
+                        continue;
+                    }
+                    
+                    // first unjoined found; hold reference
+                    if (unjoined == null)
+                    {
+                        unjoined = joycon;
+                        continue;
+                    }
+
+                    // second unjoined found but both are same-handed
+                    if (joycon.Type == unjoined.Type)
                     {
                         continue;
                     }
 
-                    // Otherwise, iterate through and find the Joycon with the lowest
-                    // id that has not been attached already (Does not include self)
-                    if (temp == null)
+                    // second unjoined found; join them
+                    if (joycon.Other == null)
                     {
-                        temp = joycon;
-                    }
-                    else if (joycon.Type != temp.Type && joycon.Other == null)
-                    {
-                        temp.Other = joycon;
-                        joycon.Other = temp;
+                        unjoined.Other = joycon;
+                        joycon.Other = unjoined;
 
-                        if (temp.out_xbox != null)
+                        if (unjoined.out_xbox != null)
                         {
                             try
                             {
-                                temp.out_xbox.Disconnect();
+                                unjoined.out_xbox.Disconnect();
                             }
                             catch
                             {
@@ -184,11 +191,11 @@ namespace EvenBetterJoy.Terminal
                                 // it wasn't connected in the first place, go figure
                             }
                         }
-                        if (temp.out_ds4 != null)
+                        if (unjoined.out_ds4 != null)
                         {
                             try
                             {
-                                temp.out_ds4.Disconnect();
+                                unjoined.out_ds4.Disconnect();
                             }
                             catch
                             {
@@ -197,7 +204,7 @@ namespace EvenBetterJoy.Terminal
                             }
                         }
 
-                        temp = null;
+                        unjoined = null;
                     }
                 }
             }
@@ -206,7 +213,6 @@ namespace EvenBetterJoy.Terminal
 
             foreach ((_, Joycon joycon) in joycons)
             {
-                // Connect device straight away
                 if (joycon.State == ControllerState.NOT_ATTACHED)
                 {
                     if (joycon.out_xbox != null)
@@ -231,7 +237,7 @@ namespace EvenBetterJoy.Terminal
                     }
 
                     joycon.SetHomeLight(settings.HomeLedOn);
-                    joycon.Begin();
+                    var token = joycon.Begin();
                 }
             }
         }

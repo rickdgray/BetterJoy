@@ -278,6 +278,7 @@ namespace EvenBetterJoy.Domain.Models
             BlinkHomeLight();
             SetLEDByPlayerNum(PadId);
 
+            //TODO: need to better document what all this is
             Subcommand(0x40, new byte[] { imu_enabled ? (byte)0x1 : (byte)0x0 }, 1);
             Subcommand(0x48, new byte[] { 0x01 }, 1);
 
@@ -345,8 +346,6 @@ namespace EvenBetterJoy.Domain.Models
 
         public void Detach(bool close = false)
         {
-            polling = false;
-
             if (out_xbox != null)
             {
                 out_xbox.Disconnect();
@@ -357,7 +356,7 @@ namespace EvenBetterJoy.Domain.Models
                 out_ds4.Disconnect();
             }
 
-            if (State > ControllerState.NO_JOYCONS)
+            if (State >= ControllerState.ATTACHED)
             {
                 deviceService.SetDeviceNonblocking(Handle, false);
 
@@ -375,11 +374,11 @@ namespace EvenBetterJoy.Domain.Models
         }
 
         private byte ts_en;
-        private int ReceiveRaw()
+        private bool ReceiveRaw()
         {
             if (Handle == IntPtr.Zero)
             {
-                return -2;
+                throw new NullReferenceException("Joycon handle is null");
             }
             
             var data = deviceService.Read(Handle, 5);
@@ -451,7 +450,7 @@ namespace EvenBetterJoy.Domain.Models
                 DebugPrint(string.Format("Enqueue. Bytes read: {0:D}. Timestamp: {1:X2}", data, data[1]), ControllerDebugMode.THREADING);
             }
 
-            return data.Length;
+            return true;
         }
 
         Dictionary<int, bool> mouse_toggle_btn = new Dictionary<int, bool>();
@@ -780,44 +779,43 @@ namespace EvenBetterJoy.Domain.Models
             //}
         }
 
-        private Thread PollThread;
-        private void Poll()
+        public CancellationTokenSource Begin()
         {
-            polling = true;
-            int attempts = 0;
-            while (polling & State > ControllerState.NO_JOYCONS)
+            var tokenSource = new CancellationTokenSource();
+
+            Task.Factory.StartNew(() =>
             {
-                if (rumble.queue.Count > 0)
+                logger.LogInformation($"Started listening to {serial_number}.");
+                
+                var attempts = 0;
+                while (true)
                 {
-                    SendRumble(rumble.GetData());
-                }
-                int a = ReceiveRaw();
+                    if (attempts > 240)
+                    {
+                        State = ControllerState.DROPPED;
+                        logger.LogInformation($"Dropped joycon {serial_number ?? string.Empty}.");
+                        break;
+                    }
 
-                if (a > 0 && State > ControllerState.DROPPED)
-                {
-                    State = ControllerState.IMU_DATA_OK;
-                    attempts = 0;
-                }
-                else if (attempts > 240)
-                {
-                    State = ControllerState.DROPPED;
-                    logger.LogInformation("Dropped.");
+                    //TODO: this rumble logic should be handled in the same function below
+                    if (rumble.queue.Count > 0)
+                    {
+                        SendRumble(rumble.GetData());
+                    }
 
-                    DebugPrint("Connection lost. Is the Joy-Con connected?", ControllerDebugMode.ALL);
-                    break;
+                    if (ReceiveRaw())
+                    {
+                        State = ControllerState.IMU_DATA_OK;
+                        attempts = 0;
+                    }
+                    else
+                    {
+                        attempts++;
+                    }
                 }
-                else if (a < 0)
-                {
-                    // An error on read.
-                    Thread.Sleep(5);
-                    attempts++;
-                }
-                else if (a == 0)
-                {
-                    // The non-blocking read timed out. No need to sleep.
-                    // No need to increase attempts because it's not an error.
-                }
-            }
+            }, tokenSource.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+            return tokenSource;
         }
 
         public float[] otherStick = { 0, 0 };
@@ -1071,25 +1069,6 @@ namespace EvenBetterJoy.Domain.Models
                 // Update rotation Quaternion
                 var deg_to_rad = 0.0174533f;
                 gyroHelper.Update(gyr_g.X * deg_to_rad, gyr_g.Y * deg_to_rad, gyr_g.Z * deg_to_rad, acc_g.X, acc_g.Y, acc_g.Z);
-            }
-        }
-
-        public void Begin()
-        {
-            if (PollThread == null)
-            {
-                PollThread = new Thread(new ThreadStart(Poll))
-                {
-                    IsBackground = true
-                };
-
-                logger.LogInformation("Starting poll thread.");
-                PollThread.Start();
-                logger.LogInformation("Started poll thread.");
-            }
-            else
-            {
-                throw new NullReferenceException("Polling thread is null; cannot start.");
             }
         }
 
