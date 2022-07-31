@@ -6,7 +6,7 @@ using EvenBetterJoy.Domain.Services;
 using EvenBetterJoy.Domain.Models;
 using EvenBetterJoy.Domain.Hid;
 
-namespace EvenBetterJoy.Terminal
+namespace EvenBetterJoy.Domain
 {
     public class JoyconManager : IJoyconManager
     {
@@ -47,7 +47,7 @@ namespace EvenBetterJoy.Terminal
             joycons = new ConcurrentDictionary<string, Joycon>();
         }
 
-        public void Start(CancellationToken cancellationToken)
+        public async Task Start(CancellationToken cancellationToken)
         {
             joyconPoller = new System.Timers.Timer(2000);
             joyconPoller.Elapsed += PollJoycons;

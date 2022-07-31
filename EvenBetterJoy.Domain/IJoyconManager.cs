@@ -1,8 +1,8 @@
-﻿namespace EvenBetterJoy.Terminal
+﻿namespace EvenBetterJoy.Domain
 {
     public interface IJoyconManager
     {
-        void Start(CancellationToken cancellationToken);
+        Task Start(CancellationToken cancellationToken);
         void Stop(CancellationToken cancellationToken);
     }
 }

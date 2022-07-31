@@ -2,11 +2,12 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using EvenBetterJoy.Domain;
 using EvenBetterJoy.Domain.Services;
 using EvenBetterJoy.Domain.Models;
 using EvenBetterJoy.Domain.Hid;
 
-namespace EvenBetterJoy.Terminal
+namespace EvenBetterJoy
 {
     public class Program
     {
@@ -22,8 +23,7 @@ namespace EvenBetterJoy.Terminal
                 {
                     //TODO: get off singletons
                     services
-                        .AddHostedService<ApplicationHostedService>()
-                        .AddTransient<IEvenBetterJoyApplication, EvenBetterJoyApplication>()
+                        .AddHostedService<EvenBetterJoy>()
                         .AddTransient<IHidService, HidService>()
                         .AddSingleton<IJoyconManager, JoyconManager>()
                         .AddSingleton<IVirtualGamepadService, VirtualGamepadService>()

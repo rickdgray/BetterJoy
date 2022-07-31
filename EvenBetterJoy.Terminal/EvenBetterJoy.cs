@@ -1,12 +1,14 @@
-﻿using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using EvenBetterJoy.Domain;
 using EvenBetterJoy.Domain.Services;
 using EvenBetterJoy.Domain.Models;
 using EvenBetterJoy.Domain.Hid;
 
-namespace EvenBetterJoy.Terminal
+namespace EvenBetterJoy
 {
-    public class EvenBetterJoyApplication : IEvenBetterJoyApplication
+    internal class EvenBetterJoy : BackgroundService
     {
         private readonly IJoyconManager joyconManager;
         private readonly IHidService hidService;
@@ -16,13 +18,13 @@ namespace EvenBetterJoy.Terminal
         private readonly ILogger logger;
         private readonly Settings settings;
 
-        public EvenBetterJoyApplication(
+        public EvenBetterJoy(
             IJoyconManager joyconManager,
             IHidService hidService,
             IHidGuardianService hidGuardianService,
             IVirtualGamepadService virtualGamepadService,
             ICommunicationService communicationService,
-            ILogger<EvenBetterJoyApplication> logger,
+            ILogger<EvenBetterJoy> logger,
             IOptions<Settings> settings)
         {
             this.joyconManager = joyconManager;
@@ -34,8 +36,9 @@ namespace EvenBetterJoy.Terminal
             this.settings = settings.Value;
         }
 
-        public void Start(CancellationToken cancellationToken)
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            logger.LogDebug("Starting application.");
             hidService.Initialize();
 
             if (settings.UseHidg)
@@ -49,15 +52,16 @@ namespace EvenBetterJoy.Terminal
                 virtualGamepadService.Start();
             }
 
-            joyconManager.Start(cancellationToken);
-
             communicationService.Start();
 
-            logger.LogInformation("All systems go.");
+            logger.LogInformation("Dependencies initialized.");
+
+            await joyconManager.Start(stoppingToken);
         }
 
-        public void Stop(CancellationToken cancellationToken)
+        public override Task StopAsync(CancellationToken cancellationToken)
         {
+            logger.LogDebug("Stopping application.");
             hidService.CleanUp();
 
             if (settings.UseHidg)
@@ -67,6 +71,8 @@ namespace EvenBetterJoy.Terminal
 
             communicationService.Stop();
             joyconManager.Stop(cancellationToken);
+
+            return Task.CompletedTask;
         }
     }
 }
