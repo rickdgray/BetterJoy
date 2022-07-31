@@ -2,19 +2,20 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using EvenBetterJoy.Domain.Services;
-using EvenBetterJoy.Domain.Models;
+using EvenBetterJoy.Domain;
+using EvenBetterJoy.Domain.Communication;
 using EvenBetterJoy.Domain.Hid;
+using EvenBetterJoy.Domain.VirtualController;
+using EvenBetterJoy.Domain.Models;
+using EvenBetterJoy.Domain.HidHide;
 
-namespace EvenBetterJoy.Terminal
+namespace EvenBetterJoy
 {
     public class Program
     {
-        static async Task Main(string[] args)
+        static async Task Main()
         {
-            //TODO: arg parser and maybe a cool ascii logo
-            
-            await Host.CreateDefaultBuilder(args)
+            await Host.CreateDefaultBuilder()
                 .UseContentRoot(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location))
                 .ConfigureLogging(logging =>
                 {
@@ -22,16 +23,14 @@ namespace EvenBetterJoy.Terminal
                 })
                 .ConfigureServices((context, services) =>
                 {
-                    //TODO: get off singletons after setting up DI
+                    //TODO: get off singletons
                     services
-                        .AddHostedService<ApplicationHostedService>()
-                        .AddTransient<IEvenBetterJoyApplication, EvenBetterJoyApplication>()
+                        .AddHostedService<EvenBetterJoy>()
                         .AddTransient<IHidService, HidService>()
+                        .AddTransient<IHidHideService, HidHideService>()
                         .AddSingleton<IJoyconManager, JoyconManager>()
-                        .AddSingleton<IVirtualGamepadService, VirtualGamepadService>()
-                        .AddSingleton<IHidGuardianService, HidGuardianService>()
-                        .AddSingleton<ICommunicationService, CommunicationService>()
-                        .AddSingleton<ISettingsService, SettingsService>();
+                        .AddSingleton<IVirtualControllerService, VirtualControllerService>()
+                        .AddSingleton<ICommunicationService, CommunicationService>();
 
                     services
                         .AddOptions<Settings>()

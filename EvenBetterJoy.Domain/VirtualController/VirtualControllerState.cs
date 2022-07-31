@@ -1,6 +1,6 @@
-﻿namespace EvenBetterJoy.Domain.Models
+﻿namespace EvenBetterJoy.Domain.VirtualController
 {
-    public class OutputControllerXbox360InputState
+    public class VirtualControllerState
     {
         // buttons
         public bool thumb_stick_left;
@@ -38,12 +38,12 @@
 
         public override bool Equals(object other)
         {
-            if (other is not OutputControllerXbox360InputState otherState)
+            if (other is not VirtualControllerState otherState)
             {
                 return false;
             }
 
-            bool buttons = thumb_stick_left == otherState.thumb_stick_left
+            var buttons = thumb_stick_left == otherState.thumb_stick_left
                 && thumb_stick_right == otherState.thumb_stick_right
                 && y == otherState.y
                 && x == otherState.x
@@ -55,28 +55,28 @@
                 && shoulder_left == otherState.shoulder_left
                 && shoulder_right == otherState.shoulder_right;
 
-            bool dpad = dpad_up == otherState.dpad_up
+            var dpad = dpad_up == otherState.dpad_up
                 && dpad_right == otherState.dpad_right
                 && dpad_down == otherState.dpad_down
                 && dpad_left == otherState.dpad_left;
 
-            bool axis = axis_left_x == otherState.axis_left_x
+            var axis = axis_left_x == otherState.axis_left_x
                 && axis_left_y == otherState.axis_left_y
                 && axis_right_x == otherState.axis_right_x
                 && axis_right_y == otherState.axis_right_y;
 
-            bool triggers = trigger_left == otherState.trigger_left
+            var triggers = trigger_left == otherState.trigger_left
                 && trigger_right == otherState.trigger_right;
 
             return buttons && dpad && axis && triggers;
         }
 
-        public static bool operator ==(OutputControllerXbox360InputState left, OutputControllerXbox360InputState right)
+        public static bool operator ==(VirtualControllerState left, VirtualControllerState right)
         {
             return left.Equals(right);
         }
 
-        public static bool operator !=(OutputControllerXbox360InputState left, OutputControllerXbox360InputState right)
+        public static bool operator !=(VirtualControllerState left, VirtualControllerState right)
         {
             return !(left == right);
         }

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using EvenBetterJoy.Domain.Models;
 
-namespace EvenBetterJoy.Domain.Services
+namespace EvenBetterJoy.Domain.Communication
 {
     public class CommunicationService : ICommunicationService
     {
@@ -40,7 +40,7 @@ namespace EvenBetterJoy.Domain.Services
             packetBuf[currIdx++] = (byte)'U';
             packetBuf[currIdx++] = (byte)'S';
 
-            Array.Copy(BitConverter.GetBytes((ushort)reqProtocolVersion), 0, packetBuf, currIdx, 2);
+            Array.Copy(BitConverter.GetBytes(reqProtocolVersion), 0, packetBuf, currIdx, 2);
             currIdx += 2;
 
             Array.Copy(BitConverter.GetBytes((ushort)packetBuf.Length - 16), 0, packetBuf, currIdx, 2);
@@ -50,7 +50,7 @@ namespace EvenBetterJoy.Domain.Services
             Array.Clear(packetBuf, currIdx, 4);
             currIdx += 4;
 
-            Array.Copy(BitConverter.GetBytes((uint)serverId), 0, packetBuf, currIdx, 4);
+            Array.Copy(BitConverter.GetBytes(serverId), 0, packetBuf, currIdx, 4);
             currIdx += 4;
 
             return currIdx;
@@ -61,7 +61,7 @@ namespace EvenBetterJoy.Domain.Services
             Array.Clear(packetBuf, 8, 4);
 
             uint crcCalc = Crc32Algorithm.Compute(packetBuf);
-            Array.Copy(BitConverter.GetBytes((uint)crcCalc), 0, packetBuf, 8, 4);
+            Array.Copy(BitConverter.GetBytes(crcCalc), 0, packetBuf, 8, 4);
         }
 
         private void SendPacket(IPEndPoint clientEP, byte[] usefulData, ushort reqProtocolVersion = MAX_PROTOCOL_VERSION)
@@ -283,7 +283,7 @@ namespace EvenBetterJoy.Domain.Services
                     socket.BeginReceiveFrom(recvBuffer, 0, recvBuffer.Length, SocketFlags.None, ref newClientEP, ReceiveCallback, socket);
                 }
             }
-            catch (SocketException ex)
+            catch (SocketException)
             {
                 uint IOC_IN = 0x80000000;
                 uint IOC_VENDOR = 0x18000000;
@@ -542,8 +542,8 @@ namespace EvenBetterJoy.Domain.Services
                     {
                         clientsList.Add(cl.Key);
                     }
-                    else if ((hidReport.PadId >= 0 && hidReport.PadId <= 3) &&
-                             (now - cl.Value.PadIdsTime[(byte)hidReport.PadId]).TotalSeconds < TimeoutLimit)
+                    else if ((hidReport.padId >= 0 && hidReport.padId <= 3) &&
+                             (now - cl.Value.PadIdsTime[(byte)hidReport.padId]).TotalSeconds < TimeoutLimit)
                     {
                         clientsList.Add(cl.Key);
                     }
@@ -602,7 +602,7 @@ namespace EvenBetterJoy.Domain.Services
             Array.Copy(BitConverter.GetBytes((uint)ControllerMessageType.DSUS_PadDataRsp), 0, outputData, outIdx, 4);
             outIdx += 4;
 
-            outputData[outIdx++] = (byte)hidReport.PadId;
+            outputData[outIdx++] = (byte)hidReport.padId;
             outputData[outIdx++] = (byte)hidReport.constate;
             outputData[outIdx++] = (byte)hidReport.model;
             outputData[outIdx++] = (byte)hidReport.connection;
@@ -633,7 +633,12 @@ namespace EvenBetterJoy.Domain.Services
 
             foreach (var cl in clientsList)
             {
-                try { socket.SendTo(outputData, cl); } catch (SocketException ex) { }
+                try
+                {
+                    socket.SendTo(outputData, cl);
+                } catch (SocketException)
+                {
+                }
             }
             clientsList.Clear();
         }

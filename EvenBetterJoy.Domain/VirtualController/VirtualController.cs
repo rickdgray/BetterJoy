@@ -2,17 +2,17 @@
 using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 
-namespace EvenBetterJoy.Domain.Models
+namespace EvenBetterJoy.Domain.VirtualController
 {
-    public class OutputControllerXbox360
+    public class VirtualController
     {
         private readonly IXbox360Controller controller;
-        private OutputControllerXbox360InputState currentState;
+        private VirtualControllerState currentState;
 
         public delegate void Xbox360FeedbackReceivedEventHandler(Xbox360FeedbackReceivedEventArgs e);
         public event Xbox360FeedbackReceivedEventHandler FeedbackReceived;
 
-        public OutputControllerXbox360(ViGEmClient client)
+        public VirtualController(ViGEmClient client)
         {
             controller = client.CreateXbox360Controller();
             controller.FeedbackReceived += FeedbackReceivedRcv;
@@ -36,7 +36,7 @@ namespace EvenBetterJoy.Domain.Models
             controller.Disconnect();
         }
 
-        public void UpdateInput(OutputControllerXbox360InputState newState)
+        public void UpdateInput(VirtualControllerState newState)
         {
             if (currentState == newState)
             {
