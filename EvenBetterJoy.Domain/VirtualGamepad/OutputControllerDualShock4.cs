@@ -1,8 +1,9 @@
-﻿using Nefarius.ViGEm.Client;
+﻿using EvenBetterJoy.Domain.Models;
+using Nefarius.ViGEm.Client;
 using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.DualShock4;
 
-namespace EvenBetterJoy.Domain.Models
+namespace EvenBetterJoy.Domain.VirtualGamepad
 {
     public class OutputControllerDualShock4
     {
@@ -40,7 +41,7 @@ namespace EvenBetterJoy.Domain.Models
             {
                 return;
             }
-            
+
             controller.SetButtonState(DualShock4Button.Triangle, newState.triangle);
             controller.SetButtonState(DualShock4Button.Circle, newState.circle);
             controller.SetButtonState(DualShock4Button.Cross, newState.cross);

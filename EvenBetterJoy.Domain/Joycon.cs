@@ -8,6 +8,7 @@ using Nefarius.ViGEm.Client.Targets.DualShock4;
 using Nefarius.ViGEm.Client;
 using EvenBetterJoy.Domain.Services;
 using EvenBetterJoy.Domain.Hid;
+using EvenBetterJoy.Domain.VirtualGamepad;
 
 namespace EvenBetterJoy.Domain.Models
 {
@@ -750,18 +751,16 @@ namespace EvenBetterJoy.Domain.Models
             //}
         }
 
-        public CancellationTokenSource Begin()
+        public Task Begin(CancellationToken cancellationToken)
         {
-            var tokenSource = new CancellationTokenSource();
-
-            Task.Factory.StartNew(() =>
+            return Task.Factory.StartNew(() =>
             {
                 logger.LogInformation($"Started listening to {serial_number}.");
 
                 var attempts = 0;
                 while (true)
                 {
-                    if (tokenSource.IsCancellationRequested)
+                    if (cancellationToken.IsCancellationRequested)
                     {
                         logger.LogInformation($"Stopped listening to {serial_number}.");
                         return;
@@ -790,9 +789,7 @@ namespace EvenBetterJoy.Domain.Models
                         attempts++;
                     }
                 }
-            }, tokenSource.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-
-            return tokenSource;
+            }, cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
         public float[] otherStick = { 0, 0 };

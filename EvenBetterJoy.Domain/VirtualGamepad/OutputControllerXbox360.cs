@@ -2,7 +2,7 @@
 using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 
-namespace EvenBetterJoy.Domain.Models
+namespace EvenBetterJoy.Domain.VirtualGamepad
 {
     public class OutputControllerXbox360
     {

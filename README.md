@@ -2,8 +2,6 @@
   <img src="title.png">
 </p>
 
-The famous [BetterJoy](https://github.com/Davidobot/BetterJoy), but even better!
-
 ## What this project is:
 * _Nintendo Switch_ controller support without the hassle!
 * Cross platform/OS agnostic!
@@ -12,21 +10,21 @@ The famous [BetterJoy](https://github.com/Davidobot/BetterJoy), but even better!
 * N64 controller support!
 
 ## What this project is not:
+* Working
+  * I'm working towards a minimum viable product right now. I hope to have my first release soon!
 * Prettier
-  * Going OS agnostic required doing away with Winforms. I have some ideas for a replacement for the UI such as MAUI, but for the time being, this will be a terminal-only application.
+  * Going OS agnostic required doing away with Winforms. I have some ideas for a replacement for the UI such as MAUI, but for the time being, this will be a background application only.
 * Feature parity with the original _BetterJoy_
   * 3rd-party controller support doesn't feel like a very useful addition to me, especially given the complexity added. This project is for _Nintendo Switch_ controllers only.
+  * Virtual Dualshock controller support also seems like unnecessary overhead when Xbox controllers are so widely supported and are the de facto standard.
+  * USB direct connection support is something I can imagine would be useful for those without a bluetooth adapter. This will not be supported for the time being, however.
 * Supported for 32-bit systems
   * No one needs this anymore
-* Supported for USB direct connection
-  * I may come back to this one if there's desire, but my guess is that everyone will just use bluetooth as it is better.
 
 ## Installation
-To be documented
-<!--1. Install [ViGEmBus](https://github.com/ViGEm/ViGEmBus/releases)
-2. Install HIDGuard
+1. Install the latest version of [ViGEmBus](https://github.com/ViGEm/ViGEmBus/releases)
 3. Run EvenBetterJoy
-4. Connect your controllers.-->
+4. Connect your controllers.
 
 ## Connecting a Controller
 * To pair:
@@ -38,7 +36,7 @@ To be documented
   * Press any button on your controller
 
 ## Acknowledgements
-[David](https://davidobot.net/)'s work on BetterJoy was a huge stepping stone; I would not have been able to put this project in motion if not for his work.
+[David](https://davidobot.net/)'s work on [BetterJoy](https://github.com/Davidobot/BetterJoy) was a huge stepping stone; I would not have been able to put this project in motion if not for his work.
 
 For posterity, I will also place his acknowledgements below as their contributions were also enormous and I would be remiss to have them forgotten!
 

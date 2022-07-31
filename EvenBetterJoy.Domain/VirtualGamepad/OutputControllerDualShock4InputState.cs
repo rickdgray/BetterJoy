@@ -1,4 +1,6 @@
-﻿namespace EvenBetterJoy.Domain.Models
+﻿using EvenBetterJoy.Domain.Models;
+
+namespace EvenBetterJoy.Domain.VirtualGamepad
 {
     public class OutputControllerDualShock4InputState
     {
@@ -38,7 +40,7 @@
                 return false;
             }
 
-            bool buttons = triangle == otherState.triangle
+            var buttons = triangle == otherState.triangle
                 && circle == otherState.circle
                 && cross == otherState.cross
                 && square == otherState.square
@@ -54,12 +56,12 @@
                 && thumb_right == otherState.thumb_right
                 && dPad == otherState.dPad;
 
-            bool axis = thumb_left_x == otherState.thumb_left_x
+            var axis = thumb_left_x == otherState.thumb_left_x
                 && thumb_left_y == otherState.thumb_left_y
                 && thumb_right_x == otherState.thumb_right_x
                 && thumb_right_y == otherState.thumb_right_y;
 
-            bool triggers = trigger_left_value == otherState.trigger_left_value
+            var triggers = trigger_left_value == otherState.trigger_left_value
                 && trigger_right_value == otherState.trigger_right_value;
 
             return buttons && axis && triggers;
