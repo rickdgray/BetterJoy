@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.2.32630.192
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EvenBetterJoy.Terminal", "EvenBetterJoy.Terminal\EvenBetterJoy.Terminal.csproj", "{C6DD5EF9-984F-46F1-8A63-B9903B33AA0A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EvenBetterJoy", "EvenBetterJoy\EvenBetterJoy.csproj", "{C6DD5EF9-984F-46F1-8A63-B9903B33AA0A}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{22511301-BE58-436B-8A83-461C88ABCBBE}"
 	ProjectSection(SolutionItems) = preProject
