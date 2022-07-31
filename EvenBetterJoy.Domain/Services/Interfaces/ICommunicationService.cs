@@ -1,4 +1,6 @@
-﻿namespace EvenBetterJoy.Services
+﻿using EvenBetterJoy.Domain.Models;
+
+namespace EvenBetterJoy.Domain.Services
 {
     public interface ICommunicationService
     {

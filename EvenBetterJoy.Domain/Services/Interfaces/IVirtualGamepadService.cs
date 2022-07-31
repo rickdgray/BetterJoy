@@ -1,6 +1,6 @@
 ﻿using Nefarius.ViGEm.Client;
 
-namespace EvenBetterJoy.Services
+namespace EvenBetterJoy.Domain.Services
 {
     public interface IVirtualGamepadService
     {

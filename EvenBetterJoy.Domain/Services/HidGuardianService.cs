@@ -1,10 +1,11 @@
 ﻿using System.ServiceProcess;
 using System.Net;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using EvenBetterJoy.Models;
+using EvenBetterJoy.Domain.Models;
 
-namespace EvenBetterJoy.Services
+namespace EvenBetterJoy.Domain.Services
 {
     public class HidGuardianService : IHidGuardianService
     {
@@ -85,6 +86,32 @@ namespace EvenBetterJoy.Services
                     HttpWebResponse r1 = (HttpWebResponse)WebRequest.Create(@"http://localhost:26762/api/v1/hidguardian/affected/purge/").GetResponse();
                 }
                 catch { }
+            }
+        }
+
+        public void Block(string path)
+        {
+            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(@"http://localhost:26762/api/v1/hidguardian/affected/add/");
+            string postData = @"hwids=HID\" + path.Split('#')[1].ToUpper();
+            var data = Encoding.UTF8.GetBytes(postData);
+
+            request.Method = "POST";
+            request.ContentType = "application/x-www-form-urlencoded; charset=UTF-8";
+            request.ContentLength = data.Length;
+
+            using (var stream = request.GetRequestStream())
+            {
+                stream.Write(data, 0, data.Length);
+            }
+
+            try
+            {
+                var response = (HttpWebResponse)request.GetResponse();
+                var responseString = new StreamReader(response.GetResponseStream()).ReadToEnd();
+            }
+            catch
+            {
+                logger.LogError("Unable to add controller to block-list.");
             }
         }
     }

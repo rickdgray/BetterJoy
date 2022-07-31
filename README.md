@@ -4,50 +4,40 @@
 
 The famous [BetterJoy](https://github.com/Davidobot/BetterJoy), but even better!
 
-### What this project is:
-
+## What this project is:
+* _Nintendo Switch_ controller support without the hassle!
 * Cross platform/OS agnostic!
 * Modernized on .NET 6!
 * Refactored/despaghettied to clean, extensible architecture!
 * N64 controller support!
 
-### What this project is not:
-
+## What this project is not:
 * Prettier
-  * Going OS agnostic required doing away with Winforms. I have some ideas for a replacement for the UI, but for the time being, this will be a terminal-only application.
+  * Going OS agnostic required doing away with Winforms. I have some ideas for a replacement for the UI such as MAUI, but for the time being, this will be a terminal-only application.
 * Feature parity with the original _BetterJoy_
   * 3rd-party controller support doesn't feel like a very useful addition to me, especially given the complexity added. This project is for _Nintendo Switch_ controllers only.
-  * This project is also a work in progress. There could be more to come.
+* Supported for 32-bit systems
+  * No one needs this anymore
+* Supported for USB direct connection
+  * I may come back to this one if there's desire, but my guess is that everyone will just use bluetooth as it is better.
 
-# Installation
+## Installation
 To be documented
 <!--1. Install [ViGEmBus](https://github.com/ViGEm/ViGEmBus/releases)
 2. Install HIDGuard
 3. Run EvenBetterJoy
 4. Connect your controllers.-->
 
-# Connecting and Disconnecting the Controller
-### Bluetooth Mode
-* To pair controller:
+## Connecting a Controller
+* To pair:
   1. Hold down the small sync button on the top of the controller for 5 seconds
   2. Search for it in your bluetooth settings and pair normally.
-* To disconnect the controller, do one of the following:
-  * Hold down the home button for 2 seconds
-  * Hold down the capture button for 2 seconds
+* To disconnect:
   * Single press the sync button
 * To reconnect:
   * Press any button on your controller
 
-### USB Mode
- * Plug the controller into your computer.
- 
-### Disconnecting \[Windows 10]
-1. Go into "Bluetooth and other devices settings"
-1. Under the first category "Mouse, keyboard, & pen", you should find your switch controller.
-1. Click on it and a "Remove" button will be revealed.
-1. Press the "Remove" button
-
-# Acknowledgements
+## Acknowledgements
 [David](https://davidobot.net/)'s work on BetterJoy was a huge stepping stone; I would not have been able to put this project in motion if not for his work.
 
 For posterity, I will also place his acknowledgements below as their contributions were also enormous and I would be remiss to have them forgotten!

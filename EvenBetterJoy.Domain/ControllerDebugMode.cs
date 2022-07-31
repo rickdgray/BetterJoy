@@ -1,4 +1,4 @@
-﻿namespace EvenBetterJoy.Models
+﻿namespace EvenBetterJoy.Domain.Models
 {
     public enum ControllerDebugMode
     {
@@ -9,5 +9,5 @@
         IMU,
         RUMBLE,
         SHAKE,
-    };
+    }
 }

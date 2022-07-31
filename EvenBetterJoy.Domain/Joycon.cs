@@ -3,15 +3,17 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Net.NetworkInformation;
 using System.Numerics;
+using Nefarius.ViGEm.Client.Targets.Xbox360;
+using Nefarius.ViGEm.Client.Targets.DualShock4;
+using Nefarius.ViGEm.Client;
+using EvenBetterJoy.Domain.Services;
+using EvenBetterJoy.Domain.Hid;
 
-namespace EvenBetterJoy.Models
+namespace EvenBetterJoy.Domain.Models
 {
     public class Joycon
     {
         public string path = string.Empty;
-        public bool isPro = false;
-        public bool isSnes = false;
-        bool isUSB = false;
 
         private Joycon _other = null;
         public Joycon Other
@@ -44,9 +46,8 @@ namespace EvenBetterJoy.Models
 
         public bool send = true;
 
-        public bool isLeft;
-
-        private ControllerState state;
+        public ControllerType Type { get; set; }
+        public ControllerState State { get; set; }
         private ControllerDebugMode debugMode;
 
         private bool[] buttons_down = new bool[20];
@@ -58,7 +59,7 @@ namespace EvenBetterJoy.Models
         private float[] stick = { 0, 0 };
         private float[] stick2 = { 0, 0 };
 
-        private IntPtr handle;
+        public IntPtr Handle { get; set; }
 
         byte[] default_buf = { 0x0, 0x1, 0x40, 0x40, 0x0, 0x1, 0x40, 0x40 };
 
@@ -103,7 +104,6 @@ namespace EvenBetterJoy.Models
 
         private bool do_localize;
         private float filterweight;
-        private const uint report_len = 49;
 
         private Rumble rumble;
 
@@ -157,38 +157,56 @@ namespace EvenBetterJoy.Models
 
         private float[] activeData;
         private GyroHelper gyroHelper;
-
-        private readonly Settings settings;
+        
+        private readonly IHidService deviceService;
+        private readonly ICommunicationService communicationService;
+        private readonly ViGEmClient client;
         private readonly ILogger logger;
-        public Joycon(IntPtr handle_, bool imu, bool localize, float alpha, bool left, string path, string serialNum, int id = 0, bool isPro = false, bool isSnes = false)
+        private readonly Settings settings;
+        
+        public Joycon(IHidService deviceService, ICommunicationService communicationService,
+            ViGEmClient client, ILogger logger, Settings settings, IntPtr handle, bool imu,
+            bool localize, ControllerType controllerType, string serialNum, int id)
         {
-            serial_number = serialNum;
-            activeData = new float[6];
-            handle = handle_;
+            this.deviceService = deviceService;
+            this.communicationService = communicationService;
+            this.client = client;
+            this.logger = logger;
+            this.settings = settings;
+
+            Handle = handle;
             imu_enabled = imu;
             do_localize = localize;
-            rumble = new Rumble(new float[] { lowFreq, highFreq, 0 });
+            this.Type = controllerType;
+            serial_number = serialNum;
+            
+            activeData = new float[6];
+
+            byte[] mac = new byte[6];
+            for (int n = 0; n < 6; n++)
+            {
+                mac[n] = byte.Parse(serial_number.Substring(n * 2, 2), NumberStyles.HexNumber);
+            }
+            PadMacAddress = new PhysicalAddress(mac);
+
+            rumble = new Rumble(new float[] { settings.LowFreqRumble, settings.HighFreqRumble, 0 });
             for (int i = 0; i < buttons_down_timestamp.Length; i++)
             {
                 buttons_down_timestamp[i] = -1;
             }
-            filterweight = alpha;
-            isLeft = left;
+
+            //TODO: put this somewhere else
+            filterweight = 0.05f;
 
             PadId = id;
             LED = (byte)(0x1 << PadId);
-            this.isPro = isPro || isSnes;
-            this.isSnes = isSnes;
-            isUSB = serialNum == "000000000001";
-
-            this.path = path;
-
-            connection = isUSB ? 0x01 : 0x02;
+            
+            connection = 0x02;
 
             if (settings.ShowAsXInput)
             {
-                out_xbox = new OutputControllerXbox360();
-                if (toRumble)
+                out_xbox = new OutputControllerXbox360(client);
+                if (settings.EnableRumble)
                 {
                     out_xbox.FeedbackReceived += ReceiveRumble;
                 }
@@ -196,8 +214,8 @@ namespace EvenBetterJoy.Models
 
             if (settings.ShowAsDS4)
             {
-                out_ds4 = new OutputControllerDualShock4();
-                if (toRumble)
+                out_ds4 = new OutputControllerDualShock4(client);
+                if (settings.EnableRumble)
                 {
                     out_ds4.FeedbackReceived += Ds4_FeedbackReceived;
                 }
@@ -209,22 +227,22 @@ namespace EvenBetterJoy.Models
         public void ReceiveRumble(Xbox360FeedbackReceivedEventArgs e)
         {
             DebugPrint("Rumble data Recived: XInput", ControllerDebugMode.RUMBLE);
-            SetRumble(lowFreq, highFreq, (float)Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
+            SetRumble(settings.LowFreqRumble, settings.HighFreqRumble, Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
 
             if (Other != null && Other != this)
             {
-                Other.SetRumble(lowFreq, highFreq, (float)Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
+                Other.SetRumble(settings.LowFreqRumble, settings.HighFreqRumble, Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
             }
         }
 
         public void Ds4_FeedbackReceived(DualShock4FeedbackReceivedEventArgs e)
         {
             DebugPrint("Rumble data Recived: DS4", ControllerDebugMode.RUMBLE);
-            SetRumble(lowFreq, highFreq, (float)Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
+            SetRumble(settings.LowFreqRumble, settings.HighFreqRumble, Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
 
             if (Other != null && Other != this)
             {
-                Other.SetRumble(lowFreq, highFreq, (float)Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
+                Other.SetRumble(settings.LowFreqRumble, settings.HighFreqRumble, Math.Max(e.LargeMotor, e.SmallMotor) / (float)255);
             }
         }
 
@@ -253,84 +271,9 @@ namespace EvenBetterJoy.Models
             return acc_g;
         }
 
-        public int Attach()
+        public void Attach()
         {
-            state = ControllerState.ATTACHED;
-
-            byte[] a = { 0x0 };
-
-            // Connect
-            if (isUSB)
-            {
-                a = Enumerable.Repeat((byte)0, 64).ToArray();
-                logger.LogInformation("Using USB.");
-
-                a[0] = 0x80;
-                a[1] = 0x1;
-                HidApi.HidWrite(handle, a, new UIntPtr(2));
-                HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
-
-                if (a[0] != 0x81)
-                {
-                    // can occur when USB connection isn't closed properly
-                    logger.LogWarning("Resetting USB connection.");
-                    Subcommand(0x06, new byte[] { 0x01 }, 1);
-                    //TODO: verify this exception is needed
-                    throw new Exception("reset_usb");
-                }
-
-                if (a[3] == 0x3)
-                {
-                    PadMacAddress = new PhysicalAddress(new byte[] { a[9], a[8], a[7], a[6], a[5], a[4] });
-                }
-
-                // USB Pairing
-                a = Enumerable.Repeat((byte)0, 64).ToArray();
-
-                // Handshake
-                a[0] = 0x80; a[1] = 0x2;
-                HidApi.HidWrite(handle, a, new UIntPtr(2));
-                HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
-
-                // 3Mbit baud rate
-                a[0] = 0x80; a[1] = 0x3;
-                HidApi.HidWrite(handle, a, new UIntPtr(2));
-                HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
-
-                // Handshake at new baud rate
-                a[0] = 0x80; a[1] = 0x2;
-                HidApi.HidWrite(handle, a, new UIntPtr(2));
-                HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
-
-                // Prevent HID timeout
-                a[0] = 0x80; a[1] = 0x4;
-                HidApi.HidWrite(handle, a, new UIntPtr(2));
-                HidApi.HidReadTimeout(handle, a, new UIntPtr(64), 100);
-
-            }
-
             LoadCalibrationData();
-
-            // Bluetooth manual pairing
-            var btMAC = new PhysicalAddress(new byte[] { 0, 0, 0, 0, 0, 0 });
-            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
-            {
-                // Get local BT host MAC
-                if (nic.NetworkInterfaceType != NetworkInterfaceType.FastEthernetFx
-                    && nic.NetworkInterfaceType != NetworkInterfaceType.Wireless80211
-                    && nic.Name.Split()[0] == "Bluetooth")
-                {
-                    btMAC = nic.GetPhysicalAddress();
-                }
-            }
-
-            byte[] btmac_host = btMAC.GetAddressBytes();
-            //TODO: what was this for?
-            // send host MAC and acquire Joycon MAC
-            //byte[] reply = Subcommand(0x01, new byte[] { 0x01, btmac_host[5], btmac_host[4], btmac_host[3], btmac_host[2], btmac_host[1], btmac_host[0] }, 7, true);
-            //byte[] LTKhash = Subcommand(0x01, new byte[] { 0x02 }, 1, true);
-            // save pairing info
-            //Subcommand(0x01, new byte[] { 0x03 }, 1, true);
 
             BlinkHomeLight();
             SetLEDByPlayerNum(PadId);
@@ -341,14 +284,14 @@ namespace EvenBetterJoy.Models
             Subcommand(0x3, new byte[] { 0x30 }, 1);
             DebugPrint("Done with init.", ControllerDebugMode.COMMS);
 
-            HidApi.HidSetNonblocking(handle, 1);
+            deviceService.SetDeviceNonblocking(Handle);
 
-            return 0;
+            State = ControllerState.ATTACHED;
         }
 
-        public void SetPlayerLED(byte leds_ = 0x0)
+        private void SetPlayerLED(byte leds)
         {
-            Subcommand(0x30, new byte[] { leds_ }, 1);
+            Subcommand(0x30, new byte[] { leds }, 1);
         }
 
         public void BlinkHomeLight()
@@ -383,11 +326,11 @@ namespace EvenBetterJoy.Models
 
         public void PowerOff()
         {
-            if (state > ControllerState.DROPPED)
+            if (State > ControllerState.DROPPED)
             {
-                HidApi.HidSetNonblocking(handle, 0);
+                deviceService.SetDeviceNonblocking(Handle, false);
                 SetHCIState(0x00);
-                state = ControllerState.DROPPED;
+                State = ControllerState.DROPPED;
             }
         }
 
@@ -396,7 +339,7 @@ namespace EvenBetterJoy.Models
             if (battery <= 1)
             {
                 //TODO: figure out how to alert the user
-                //string.Format("Controller {0} ({1}) - low battery notification!", PadId, isPro ? "Pro Controller" : (isSnes ? "SNES Controller" : (isLeft ? "Joycon Left" : "Joycon Right")));
+                //string.Format("Controller {0} ({1}) - low battery notification!", PadId, controllerType == ControllerType.PRO_CONTROLLER ? "Pro Controller" : (controllerType == ControllerType.SNES_CONTROLLER ? "SNES Controller" : (controllerType == ControllerType.LEFT_JOYCON ? "Joycon Left" : "Joycon Right")));
             }
         }
 
@@ -414,62 +357,52 @@ namespace EvenBetterJoy.Models
                 out_ds4.Disconnect();
             }
 
-            if (state > ControllerState.NO_JOYCONS)
+            if (State > ControllerState.NO_JOYCONS)
             {
-                HidApi.HidSetNonblocking(handle, 0);
+                deviceService.SetDeviceNonblocking(Handle, false);
 
+                //TODO: this was already commented out; what was it for?
                 //Subcommand(0x40, new byte[] { 0x0 }, 1); // disable IMU sensor
                 //Subcommand(0x48, new byte[] { 0x0 }, 1); // Would turn off rumble?
-
-                if (isUSB)
-                {
-                    // Allow device to talk to BT again
-                    byte[] a = Enumerable.Repeat((byte)0, 64).ToArray();
-                    a[0] = 0x80; a[1] = 0x5;
-                    HidApi.HidWrite(handle, a, new UIntPtr(2));
-                    a[0] = 0x80; a[1] = 0x6;
-                    HidApi.HidWrite(handle, a, new UIntPtr(2));
-                }
             }
 
-            if (close || state > ControllerState.DROPPED)
+            if (close || State > ControllerState.DROPPED)
             {
-                HidApi.HidClose(handle);
+                deviceService.CloseDevice(Handle);
             }
 
-            state = ControllerState.NOT_ATTACHED;
+            State = ControllerState.NOT_ATTACHED;
         }
 
         private byte ts_en;
         private int ReceiveRaw()
         {
-            if (handle == IntPtr.Zero)
+            if (Handle == IntPtr.Zero)
             {
                 return -2;
             }
             
-            byte[] raw_buf = new byte[report_len];
-            int inboundData = HidApi.HidReadTimeout(handle, raw_buf, new UIntPtr(report_len), 5);
+            var data = deviceService.Read(Handle, 5);
 
-            if (inboundData > 0)
+            if (data.Length > 0)
             {
                 // Process packets as soon as they come
-                for (int n = 0; n < 3; n++)
+                for (var n = 0; n < 3; n++)
                 {
-                    ExtractIMUValues(raw_buf, n);
+                    ExtractIMUValues(data, n);
 
-                    byte lag = (byte)Math.Max(0, raw_buf[1] - ts_en - 3);
+                    var lag = (byte)Math.Max(0, data[1] - ts_en - 3);
                     if (n == 0)
                     {
                         // add lag once
                         Timestamp += (ulong)lag * 5000;
-                        ProcessButtonsAndStick(raw_buf);
+                        ProcessButtonsAndStick(data);
 
                         // process buttons here to have them affect DS4
                         DoThingsWithButtons();
 
                         int newbat = battery;
-                        battery = (raw_buf[2] >> 4) / 2;
+                        battery = (data[2] >> 4) / 2;
                         if (newbat != battery)
                         {
                             BatteryChanged();
@@ -478,11 +411,8 @@ namespace EvenBetterJoy.Models
                     
                     Timestamp += 5000;
                     packetCounter++;
-                    
-                    if (!isUSB)
-                    {
-                        communicationService.NewReportIncoming(this);
-                    }
+
+                    communicationService.NewReportIncoming(this);
 
                     if (out_ds4 != null)
                     {
@@ -510,24 +440,25 @@ namespace EvenBetterJoy.Models
                     }
                 }
 
-                //TODO: why filter out snes only?
-                if (ts_en == raw_buf[1] && !isSnes)
+                //TODO: why filter out snes only? possibly because gyro related?
+                if (ts_en == data[1] && Type != ControllerType.SNES_CONTROLLER)
                 {
                     logger.LogTrace("Duplicate timestamp enqueued.");
                     DebugPrint(string.Format("Duplicate timestamp enqueued. TS: {0:X2}", ts_en), ControllerDebugMode.THREADING);
                 }
 
-                ts_en = raw_buf[1];
-                DebugPrint(string.Format("Enqueue. Bytes read: {0:D}. Timestamp: {1:X2}", inboundData, raw_buf[1]), ControllerDebugMode.THREADING);
+                ts_en = data[1];
+                DebugPrint(string.Format("Enqueue. Bytes read: {0:D}. Timestamp: {1:X2}", data, data[1]), ControllerDebugMode.THREADING);
             }
 
-            return inboundData;
+            return data.Length;
         }
 
         Dictionary<int, bool> mouse_toggle_btn = new Dictionary<int, bool>();
         private void Simulate(string s, bool click = true, bool up = false)
         {
             //TODO: get rid of this string parsing hack
+            //TODO: try out Desktop.Robot for os agnostic key simulation
             //if (s.StartsWith("key_"))
             //{
             //    WindowsInput.Events.KeyCode key = (WindowsInput.Events.KeyCode)Int32.Parse(s.Substring(4));
@@ -597,7 +528,17 @@ namespace EvenBetterJoy.Models
         byte[] sliderVal = new byte[] { 0, 0 };
         private void DoThingsWithButtons()
         {
-            int powerOffButton = (int)((isPro || !isLeft || Other != null) ? ControllerButton.HOME : ControllerButton.CAPTURE);
+            //TODO: double check this button mapping
+            //int powerOffButton = (int)((controllerType == ControllerType.PRO_CONTROLLER || controllerType != ControllerType.LEFT_JOYCON || Other != null) ? ControllerButton.HOME : ControllerButton.CAPTURE);
+            var powerOffButton = Type switch
+            {
+                ControllerType.LEFT_JOYCON => (int)ControllerButton.CAPTURE,
+                ControllerType.RIGHT_JOYCON => (int)ControllerButton.HOME,
+                ControllerType.PRO_CONTROLLER => (int)ControllerButton.HOME,
+                ControllerType.SNES_CONTROLLER => (int)ControllerButton.HOME,
+                ControllerType.N64_CONTROLLER => (int)ControllerButton.HOME,
+                _ => throw new Exception("Unknown controller type")
+            };
 
             long timestamp = Stopwatch.GetTimestamp();
             if (settings.HomeLongPowerOff && buttons[powerOffButton])
@@ -614,7 +555,7 @@ namespace EvenBetterJoy.Models
                 }
             }
 
-            if (settings.ChangeOrientationDoubleClick && buttons_down[(int)ControllerButton.STICK] && lastDoubleClick != -1 && !isPro)
+            if (settings.ChangeOrientationDoubleClick && buttons_down[(int)ControllerButton.STICK] && lastDoubleClick != -1 && Type != ControllerType.PRO_CONTROLLER)
             {
                 if ((buttons_down_timestamp[(int)ControllerButton.STICK] - lastDoubleClick) < 3000000)
                 {
@@ -628,7 +569,7 @@ namespace EvenBetterJoy.Models
 
                 lastDoubleClick = buttons_down_timestamp[(int)ControllerButton.STICK];
             }
-            else if (settings.ChangeOrientationDoubleClick && buttons_down[(int)ControllerButton.STICK] && !isPro)
+            else if (settings.ChangeOrientationDoubleClick && buttons_down[(int)ControllerButton.STICK] && Type != ControllerType.PRO_CONTROLLER)
             {
                 lastDoubleClick = buttons_down_timestamp[(int)ControllerButton.STICK];
             }
@@ -651,77 +592,79 @@ namespace EvenBetterJoy.Models
 
             if (buttons_down[(int)ControllerButton.CAPTURE])
             {
-                Simulate(Config.GetValue("capture"));
+                Simulate(settings.Capture);
             }
             
             if (buttons_down[(int)ControllerButton.HOME])
             {
-                Simulate(Config.GetValue("home"));
+                Simulate(settings.Home);
             }
             
-            SimulateContinous((int)ControllerButton.CAPTURE, Config.GetValue("capture"));
-            SimulateContinous((int)ControllerButton.HOME, ControllerButton.GetValue("home"));
+            SimulateContinous((int)ControllerButton.CAPTURE, settings.Capture);
+            SimulateContinous((int)ControllerButton.HOME, settings.Home);
 
-            if (isLeft)
+            if (Type == ControllerType.LEFT_JOYCON)
             {
                 if (buttons_down[(int)ControllerButton.SL])
                 {
-                    Simulate(Config.GetValue("sl_l"), false, false);
+                    Simulate(settings.LeftJoyconL, false, false);
                 }
                 
                 if (buttons_up[(int)ControllerButton.SL])
                 {
-                    Simulate(Config.GetValue("sl_l"), false, true);
+                    Simulate(settings.LeftJoyconL, false, true);
                 }
                 
                 if (buttons_down[(int)ControllerButton.SR])
                 {
-                    Simulate(Config.GetValue("sr_l"), false, false);
+                    Simulate(settings.LeftJoyconR, false, false);
                 }
                 
                 if (buttons_up[(int)ControllerButton.SR])
                 {
-                    Simulate(Config.GetValue("sr_l"), false, true);
+                    Simulate(settings.LeftJoyconR, false, true);
                 }
 
-                SimulateContinous((int)ControllerButton.SL, Config.GetValue("sl_l"));
-                SimulateContinous((int)ControllerButton.SR, Config.GetValue("sr_l"));
+                SimulateContinous((int)ControllerButton.SL, settings.LeftJoyconL);
+                SimulateContinous((int)ControllerButton.SR, settings.LeftJoyconR);
             }
             else
             {
                 if (buttons_down[(int)ControllerButton.SL])
                 {
-                    Simulate(Config.GetValue("sl_r"), false, false);
+                    Simulate(settings.RightJoyconL, false, false);
                 }
                 
                 if (buttons_up[(int)ControllerButton.SL])
                 {
-                    Simulate(Config.GetValue("sl_r"), false, true);
+                    Simulate(settings.RightJoyconL, false, true);
                 }
                 
                 if (buttons_down[(int)ControllerButton.SR])
                 {
-                    Simulate(Config.GetValue("sr_r"), false, false);
+                    Simulate(settings.RightJoyconR, false, false);
                 }
 
                 if (buttons_up[(int)ControllerButton.SR])
                 {
-                    Simulate(Config.GetValue("sr_r"), false, true);
+                    Simulate(settings.RightJoyconR, false, true);
                 }
 
-                SimulateContinous((int)ControllerButton.SL, Config.GetValue("sl_r"));
-                SimulateContinous((int)ControllerButton.SR, Config.GetValue("sr_r"));
+                SimulateContinous((int)ControllerButton.SL, settings.RightJoyconL);
+                SimulateContinous((int)ControllerButton.SR, settings.RightJoyconR);
             }
 
             // Filtered IMU data
             cur_rotation = gyroHelper.GetEulerAngles();
             float dt = 0.015f; // 15ms
 
-            if (settings.GyroAnalogSliders && (Other != null || isPro))
+            if (settings.GyroAnalogSliders && (Other != null || Type == ControllerType.PRO_CONTROLLER))
             {
-                ControllerButton leftT = isLeft ? ControllerButton.SHOULDER_2 : ControllerButton.SHOULDER2_2;
-                ControllerButton rightT = isLeft ? ControllerButton.SHOULDER2_2 : ControllerButton.SHOULDER_2;
-                Joycon left = isLeft ? this : (isPro ? this : Other); Joycon right = !isLeft ? this : (isPro ? this : Other);
+                ControllerButton leftT = Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER_2 : ControllerButton.SHOULDER2_2;
+                ControllerButton rightT = Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER2_2 : ControllerButton.SHOULDER_2;
+                
+                Joycon left = Type == ControllerType.LEFT_JOYCON ? this : (Type == ControllerType.PRO_CONTROLLER ? this : Other);
+                Joycon right = Type != ControllerType.LEFT_JOYCON ? this : (Type == ControllerType.PRO_CONTROLLER ? this : Other);
 
                 int ldy, rdy;
                 if (settings.UseFilteredIMU)
@@ -737,7 +680,7 @@ namespace EvenBetterJoy.Models
 
                 if (buttons[(int)leftT])
                 {
-                    sliderVal[0] = (byte)Math.Min(Byte.MaxValue, Math.Max(0, sliderVal[0] + ldy));
+                    sliderVal[0] = (byte)Math.Min(byte.MaxValue, Math.Max(0, sliderVal[0] + ldy));
                 }
                 else
                 {
@@ -746,7 +689,7 @@ namespace EvenBetterJoy.Models
 
                 if (buttons[(int)rightT])
                 {
-                    sliderVal[1] = (byte)Math.Min(Byte.MaxValue, Math.Max(0, sliderVal[1] + rdy));
+                    sliderVal[1] = (byte)Math.Min(byte.MaxValue, Math.Max(0, sliderVal[1] + rdy));
                 }
                 else
                 {
@@ -754,7 +697,7 @@ namespace EvenBetterJoy.Models
                 }
             }
 
-            string res_val = Config.GetValue("active_gyro");
+            string res_val = settings.ActiveGyro;
             if (res_val.StartsWith("joy_"))
             {
                 var i = int.Parse(res_val.Substring(4));
@@ -778,9 +721,9 @@ namespace EvenBetterJoy.Models
                 }
             }
 
-            if (settings.GyroToJoyOrMouse.Substring(0, 3) == "joy")
+            if (settings.GyroToJoyOrMouse[..3] == "joy")
             {
-                if (Config.GetValue("active_gyro") == "0" || active_gyro)
+                if (settings.ActiveGyro == "0" || active_gyro)
                 {
                     float[] control_stick = (settings.GyroToJoyOrMouse == "joy_left") ? stick : stick2;
 
@@ -800,38 +743,41 @@ namespace EvenBetterJoy.Models
                     control_stick[1] = Math.Max(-1.0f, Math.Min(1.0f, control_stick[1] / settings.GyroStickReduction + dy));
                 }
             }
-            else if (settings.GyroToJoyOrMouse == "mouse" && (isPro || (Other == null) || (Other != null && (settings.GyroMouseLeftHanded ? isLeft : !isLeft))))
-            {
-                // gyro data is in degrees/s
-                if (Config.GetValue("active_gyro") == "0" || active_gyro)
-                {
-                    int dx, dy;
+            //TODO: probably gonna throw this away if my assumption is correct
+            //that it's just for controlling gyro with mouse
+            //else if (settings.GyroToJoyOrMouse == "mouse" && (controllerType == ControllerType.PRO_CONTROLLER || (Other == null) || (Other != null && (settings.GyroMouseLeftHanded ? controllerType == ControllerType.LEFT_JOYCON : controllerType != ControllerType.LEFT_JOYCON))))
+            //{
+            //    // gyro data is in degrees/s
+            //    if (settings.ActiveGyro == "0" || active_gyro)
+            //    {
+            //        int dx, dy;
 
-                    if (settings.UseFilteredIMU)
-                    {
-                        dx = (int)(settings.GyroMouseSensitivityX * (cur_rotation[1] - cur_rotation[4])); // yaw
-                        dy = (int)-(settings.GyroMouseSensitivityY * (cur_rotation[0] - cur_rotation[3])); // pitch
-                    }
-                    else
-                    {
-                        dx = (int)(settings.GyroMouseSensitivityX * (gyr_g.Z * dt));
-                        dy = (int)-(settings.GyroMouseSensitivityY * (gyr_g.Y * dt));
-                    }
+            //        if (settings.UseFilteredIMU)
+            //        {
+            //            dx = (int)(settings.GyroMouseSensitivityX * (cur_rotation[1] - cur_rotation[4])); // yaw
+            //            dy = (int)-(settings.GyroMouseSensitivityY * (cur_rotation[0] - cur_rotation[3])); // pitch
+            //        }
+            //        else
+            //        {
+            //            dx = (int)(settings.GyroMouseSensitivityX * (gyr_g.Z * dt));
+            //            dy = (int)-(settings.GyroMouseSensitivityY * (gyr_g.Y * dt));
+            //        }
 
-                    WindowsInput.Simulate.Events().MoveBy(dx, dy).Invoke();
-                }
+            //        //robot.MouseMove(dx, dy);
+            //        WindowsInput.Simulate.Events().MoveBy(dx, dy).Invoke();
+            //    }
 
-                // reset mouse position to centre of primary monitor
-                res_val = Config.GetValue("reset_mouse");
-                if (res_val.StartsWith("joy_"))
-                {
-                    int i = int.Parse(res_val[4..]);
-                    if (buttons_down[i] || (Other != null && Other.buttons_down[i]))
-                    {
-                        WindowsInput.Simulate.Events().MoveTo(Screen.PrimaryScreen.Bounds.Width / 2, Screen.PrimaryScreen.Bounds.Height / 2).Invoke();
-                    }
-                }
-            }
+            //    // reset mouse position to centre of primary monitor
+            //    res_val = settings.ResetMouse;
+            //    if (res_val.StartsWith("joy_"))
+            //    {
+            //        int i = int.Parse(res_val[4..]);
+            //        if (buttons_down[i] || (Other != null && Other.buttons_down[i]))
+            //        {
+            //            WindowsInput.Simulate.Events().MoveTo(Screen.PrimaryScreen.Bounds.Width / 2, Screen.PrimaryScreen.Bounds.Height / 2).Invoke();
+            //        }
+            //    }
+            //}
         }
 
         private Thread PollThread;
@@ -839,7 +785,7 @@ namespace EvenBetterJoy.Models
         {
             polling = true;
             int attempts = 0;
-            while (polling & state > ControllerState.NO_JOYCONS)
+            while (polling & State > ControllerState.NO_JOYCONS)
             {
                 if (rumble.queue.Count > 0)
                 {
@@ -847,14 +793,14 @@ namespace EvenBetterJoy.Models
                 }
                 int a = ReceiveRaw();
 
-                if (a > 0 && state > ControllerState.DROPPED)
+                if (a > 0 && State > ControllerState.DROPPED)
                 {
-                    state = ControllerState.IMU_DATA_OK;
+                    State = ControllerState.IMU_DATA_OK;
                     attempts = 0;
                 }
                 else if (attempts > 240)
                 {
-                    state = ControllerState.DROPPED;
+                    State = ControllerState.DROPPED;
                     logger.LogInformation("Dropped.");
 
                     DebugPrint("Connection lost. Is the Joy-Con connected?", ControllerDebugMode.ALL);
@@ -882,24 +828,24 @@ namespace EvenBetterJoy.Models
                 throw new ArgumentException("received undefined report. This is probably a bug");
             }
 
-            if (!isSnes)
+            if (Type != ControllerType.SNES_CONTROLLER)
             {
-                stick_raw[0] = report_buf[6 + (isLeft ? 0 : 3)];
-                stick_raw[1] = report_buf[7 + (isLeft ? 0 : 3)];
-                stick_raw[2] = report_buf[8 + (isLeft ? 0 : 3)];
+                stick_raw[0] = report_buf[6 + (Type == ControllerType.LEFT_JOYCON ? 0 : 3)];
+                stick_raw[1] = report_buf[7 + (Type == ControllerType.LEFT_JOYCON ? 0 : 3)];
+                stick_raw[2] = report_buf[8 + (Type == ControllerType.LEFT_JOYCON ? 0 : 3)];
 
-                if (isPro)
+                if (Type == ControllerType.PRO_CONTROLLER)
                 {
-                    stick2_raw[0] = report_buf[6 + (!isLeft ? 0 : 3)];
-                    stick2_raw[1] = report_buf[7 + (!isLeft ? 0 : 3)];
-                    stick2_raw[2] = report_buf[8 + (!isLeft ? 0 : 3)];
+                    stick2_raw[0] = report_buf[6 + (Type != ControllerType.LEFT_JOYCON ? 0 : 3)];
+                    stick2_raw[1] = report_buf[7 + (Type != ControllerType.LEFT_JOYCON ? 0 : 3)];
+                    stick2_raw[2] = report_buf[8 + (Type != ControllerType.LEFT_JOYCON ? 0 : 3)];
                 }
 
                 stick_precal[0] = (ushort)(stick_raw[0] | ((stick_raw[1] & 0xf) << 8));
                 stick_precal[1] = (ushort)((stick_raw[1] >> 4) | (stick_raw[2] << 4));
                 stick = CalculateStickData(stick_precal, stick_cal, deadzone);
 
-                if (isPro)
+                if (Type == ControllerType.PRO_CONTROLLER)
                 {
                     stick2_precal[0] = (ushort)(stick2_raw[0] | ((stick2_raw[1] & 0xf) << 8));
                     stick2_precal[1] = (ushort)((stick2_raw[1] >> 4) | (stick2_raw[2] << 4));
@@ -907,13 +853,13 @@ namespace EvenBetterJoy.Models
                 }
 
                 // Read other Joycon's sticks
-                if (isLeft && Other != null && Other != this)
+                if (Type == ControllerType.LEFT_JOYCON && Other != null && Other != this)
                 {
                     stick2 = otherStick;
                     Other.otherStick = stick;
                 }
 
-                if (!isLeft && Other != null && Other != this)
+                if (Type != ControllerType.LEFT_JOYCON && Other != null && Other != this)
                 {
                     Array.Copy(stick, stick2, 2);
                     stick = otherStick;
@@ -934,30 +880,30 @@ namespace EvenBetterJoy.Models
                 buttons = new bool[20];
 
                 //TODO: convert all this to list of enums instead of this crap array of casted enums
-                buttons[(int)ControllerButton.DPAD_DOWN] = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x01 : 0x04)) != 0;
-                buttons[(int)ControllerButton.DPAD_RIGHT] = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x04 : 0x08)) != 0;
-                buttons[(int)ControllerButton.DPAD_UP] = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x02 : 0x02)) != 0;
-                buttons[(int)ControllerButton.DPAD_LEFT] = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x08 : 0x01)) != 0;
+                buttons[(int)ControllerButton.DPAD_DOWN] = (report_buf[3 + (Type == ControllerType.LEFT_JOYCON ? 2 : 0)] & (Type == ControllerType.LEFT_JOYCON ? 0x01 : 0x04)) != 0;
+                buttons[(int)ControllerButton.DPAD_RIGHT] = (report_buf[3 + (Type == ControllerType.LEFT_JOYCON ? 2 : 0)] & (Type == ControllerType.LEFT_JOYCON ? 0x04 : 0x08)) != 0;
+                buttons[(int)ControllerButton.DPAD_UP] = (report_buf[3 + (Type == ControllerType.LEFT_JOYCON ? 2 : 0)] & (Type == ControllerType.LEFT_JOYCON ? 0x02 : 0x02)) != 0;
+                buttons[(int)ControllerButton.DPAD_LEFT] = (report_buf[3 + (Type == ControllerType.LEFT_JOYCON ? 2 : 0)] & (Type == ControllerType.LEFT_JOYCON ? 0x08 : 0x01)) != 0;
                 buttons[(int)ControllerButton.HOME] = ((report_buf[4] & 0x10) != 0);
                 buttons[(int)ControllerButton.CAPTURE] = ((report_buf[4] & 0x20) != 0);
                 buttons[(int)ControllerButton.MINUS] = ((report_buf[4] & 0x01) != 0);
                 buttons[(int)ControllerButton.PLUS] = ((report_buf[4] & 0x02) != 0);
-                buttons[(int)ControllerButton.STICK] = ((report_buf[4] & (isLeft ? 0x08 : 0x04)) != 0);
-                buttons[(int)ControllerButton.SHOULDER_1] = (report_buf[3 + (isLeft ? 2 : 0)] & 0x40) != 0;
-                buttons[(int)ControllerButton.SHOULDER_2] = (report_buf[3 + (isLeft ? 2 : 0)] & 0x80) != 0;
-                buttons[(int)ControllerButton.SR] = (report_buf[3 + (isLeft ? 2 : 0)] & 0x10) != 0;
-                buttons[(int)ControllerButton.SL] = (report_buf[3 + (isLeft ? 2 : 0)] & 0x20) != 0;
+                buttons[(int)ControllerButton.STICK] = ((report_buf[4] & (Type == ControllerType.LEFT_JOYCON ? 0x08 : 0x04)) != 0);
+                buttons[(int)ControllerButton.SHOULDER_1] = (report_buf[3 + (Type == ControllerType.LEFT_JOYCON ? 2 : 0)] & 0x40) != 0;
+                buttons[(int)ControllerButton.SHOULDER_2] = (report_buf[3 + (Type == ControllerType.LEFT_JOYCON ? 2 : 0)] & 0x80) != 0;
+                buttons[(int)ControllerButton.SR] = (report_buf[3 + (Type == ControllerType.LEFT_JOYCON ? 2 : 0)] & 0x10) != 0;
+                buttons[(int)ControllerButton.SL] = (report_buf[3 + (Type == ControllerType.LEFT_JOYCON ? 2 : 0)] & 0x20) != 0;
 
-                if (isPro)
+                if (Type == ControllerType.PRO_CONTROLLER)
                 {
-                    buttons[(int)ControllerButton.B] = (report_buf[3 + (!isLeft ? 2 : 0)] & (!isLeft ? 0x01 : 0x04)) != 0;
-                    buttons[(int)ControllerButton.A] = (report_buf[3 + (!isLeft ? 2 : 0)] & (!isLeft ? 0x04 : 0x08)) != 0;
-                    buttons[(int)ControllerButton.X] = (report_buf[3 + (!isLeft ? 2 : 0)] & (!isLeft ? 0x02 : 0x02)) != 0;
-                    buttons[(int)ControllerButton.Y] = (report_buf[3 + (!isLeft ? 2 : 0)] & (!isLeft ? 0x08 : 0x01)) != 0;
+                    buttons[(int)ControllerButton.B] = (report_buf[3 + (Type != ControllerType.LEFT_JOYCON ? 2 : 0)] & (Type != ControllerType.LEFT_JOYCON ? 0x01 : 0x04)) != 0;
+                    buttons[(int)ControllerButton.A] = (report_buf[3 + (Type != ControllerType.LEFT_JOYCON ? 2 : 0)] & (Type != ControllerType.LEFT_JOYCON ? 0x04 : 0x08)) != 0;
+                    buttons[(int)ControllerButton.X] = (report_buf[3 + (Type != ControllerType.LEFT_JOYCON ? 2 : 0)] & (Type != ControllerType.LEFT_JOYCON ? 0x02 : 0x02)) != 0;
+                    buttons[(int)ControllerButton.Y] = (report_buf[3 + (Type != ControllerType.LEFT_JOYCON ? 2 : 0)] & (Type != ControllerType.LEFT_JOYCON ? 0x08 : 0x01)) != 0;
 
-                    buttons[(int)ControllerButton.STICK2] = ((report_buf[4] & (!isLeft ? 0x08 : 0x04)) != 0);
-                    buttons[(int)ControllerButton.SHOULDER2_1] = (report_buf[3 + (!isLeft ? 2 : 0)] & 0x40) != 0;
-                    buttons[(int)ControllerButton.SHOULDER2_2] = (report_buf[3 + (!isLeft ? 2 : 0)] & 0x80) != 0;
+                    buttons[(int)ControllerButton.STICK2] = ((report_buf[4] & (Type != ControllerType.LEFT_JOYCON ? 0x08 : 0x04)) != 0);
+                    buttons[(int)ControllerButton.SHOULDER2_1] = (report_buf[3 + (Type != ControllerType.LEFT_JOYCON ? 2 : 0)] & 0x40) != 0;
+                    buttons[(int)ControllerButton.SHOULDER2_2] = (report_buf[3 + (Type != ControllerType.LEFT_JOYCON ? 2 : 0)] & 0x80) != 0;
                 }
 
                 if (Other != null && Other != this)
@@ -972,13 +918,13 @@ namespace EvenBetterJoy.Models
                     buttons[(int)ControllerButton.SHOULDER2_2] = Other.buttons[(int)ControllerButton.SHOULDER_2];
                 }
 
-                if (isLeft && Other != null && Other != this)
+                if (Type == ControllerType.LEFT_JOYCON && Other != null && Other != this)
                 {
                     buttons[(int)ControllerButton.HOME] = Other.buttons[(int)ControllerButton.HOME];
                     buttons[(int)ControllerButton.PLUS] = Other.buttons[(int)ControllerButton.PLUS];
                 }
 
-                if (!isLeft && Other != null && Other != this)
+                if (Type != ControllerType.LEFT_JOYCON && Other != null && Other != this)
                 {
                     buttons[(int)ControllerButton.MINUS] = Other.buttons[(int)ControllerButton.MINUS];
                 }
@@ -1017,7 +963,7 @@ namespace EvenBetterJoy.Models
         // Get Gyro/Accel data
         private void ExtractIMUValues(byte[] report_buf, int n = 0)
         {
-            if (!isSnes)
+            if (Type != ControllerType.SNES_CONTROLLER)
             {
                 gyr_r[0] = (short)(report_buf[19 + n * 12] | ((report_buf[20 + n * 12] << 8) & 0xff00));
                 gyr_r[1] = (short)(report_buf[21 + n * 12] | ((report_buf[22 + n * 12] << 8) & 0xff00));
@@ -1043,8 +989,8 @@ namespace EvenBetterJoy.Models
                     //            }
                     //            break;
                     //        case 1:
-                    //            acc_g.Y = (!isLeft ? -1 : 1) * (acc_r[i] - activeData[4]) * (1.0f / acc_sen[i]) * 4.0f;
-                    //            gyr_g.Y = -(!isLeft ? -1 : 1) * (gyr_r[i] - activeData[1]) * (816.0f / gyr_sen[i]);
+                    //            acc_g.Y = (controllerType != ControllerType.LEFT_JOYCON ? -1 : 1) * (acc_r[i] - activeData[4]) * (1.0f / acc_sen[i]) * 4.0f;
+                    //            gyr_g.Y = -(controllerType != ControllerType.LEFT_JOYCON ? -1 : 1) * (gyr_r[i] - activeData[1]) * (816.0f / gyr_sen[i]);
                     //            if (form.calibrate)
                     //            {
                     //                form.yA.Add(acc_r[i]);
@@ -1052,8 +998,8 @@ namespace EvenBetterJoy.Models
                     //            }
                     //            break;
                     //        case 2:
-                    //            acc_g.Z = (!isLeft ? -1 : 1) * (acc_r[i] - activeData[5]) * (1.0f / acc_sen[i]) * 4.0f;
-                    //            gyr_g.Z = -(!isLeft ? -1 : 1) * (gyr_r[i] - activeData[2]) * (816.0f / gyr_sen[i]);
+                    //            acc_g.Z = (controllerType != ControllerType.LEFT_JOYCON ? -1 : 1) * (acc_r[i] - activeData[5]) * (1.0f / acc_sen[i]) * 4.0f;
+                    //            gyr_g.Z = -(controllerType != ControllerType.LEFT_JOYCON ? -1 : 1) * (gyr_r[i] - activeData[2]) * (816.0f / gyr_sen[i]);
                     //            if (form.calibrate)
                     //            {
                     //                form.zA.Add(acc_r[i]);
@@ -1066,11 +1012,11 @@ namespace EvenBetterJoy.Models
                 else
                 {
                     short[] offset;
-                    if (isPro)
+                    if (Type == ControllerType.PRO_CONTROLLER)
                     {
                         offset = pro_hor_offset;
                     }
-                    else if (isLeft)
+                    else if (Type == ControllerType.LEFT_JOYCON)
                     {
                         offset = left_hor_offset;
                     }
@@ -1088,21 +1034,21 @@ namespace EvenBetterJoy.Models
                                 gyr_g.X = (gyr_r[i] - gyr_neutral[i]) * (816.0f / (gyr_sensiti[i] - gyr_neutral[i]));
                                 break;
                             case 1:
-                                acc_g.Y = (!isLeft ? -1 : 1) * (acc_r[i] - offset[i]) * (1.0f / (acc_sensiti[i] - acc_neutral[i])) * 4.0f;
-                                gyr_g.Y = -(!isLeft ? -1 : 1) * (gyr_r[i] - gyr_neutral[i]) * (816.0f / (gyr_sensiti[i] - gyr_neutral[i]));
+                                acc_g.Y = (Type != ControllerType.LEFT_JOYCON ? -1 : 1) * (acc_r[i] - offset[i]) * (1.0f / (acc_sensiti[i] - acc_neutral[i])) * 4.0f;
+                                gyr_g.Y = -(Type != ControllerType.LEFT_JOYCON ? -1 : 1) * (gyr_r[i] - gyr_neutral[i]) * (816.0f / (gyr_sensiti[i] - gyr_neutral[i]));
                                 break;
                             case 2:
-                                acc_g.Z = (!isLeft ? -1 : 1) * (acc_r[i] - offset[i]) * (1.0f / (acc_sensiti[i] - acc_neutral[i])) * 4.0f;
-                                gyr_g.Z = -(!isLeft ? -1 : 1) * (gyr_r[i] - gyr_neutral[i]) * (816.0f / (gyr_sensiti[i] - gyr_neutral[i]));
+                                acc_g.Z = (Type != ControllerType.LEFT_JOYCON ? -1 : 1) * (acc_r[i] - offset[i]) * (1.0f / (acc_sensiti[i] - acc_neutral[i])) * 4.0f;
+                                gyr_g.Z = -(Type != ControllerType.LEFT_JOYCON ? -1 : 1) * (gyr_r[i] - gyr_neutral[i]) * (816.0f / (gyr_sensiti[i] - gyr_neutral[i]));
                                 break;
                         }
                     }
                 }
 
-                if (Other == null && !isPro)
+                if (Other == null && Type != ControllerType.PRO_CONTROLLER)
                 {
                     // single joycon mode; Z do not swap, rest do
-                    if (isLeft)
+                    if (Type == ControllerType.LEFT_JOYCON)
                     {
                         acc_g.X = -acc_g.X;
                         acc_g.Y = -acc_g.Y;
@@ -1177,7 +1123,7 @@ namespace EvenBetterJoy.Models
 
         public void SetRumble(float low_freq, float high_freq, float amp)
         {
-            if (state <= ControllerState.ATTACHED)
+            if (State <= ControllerState.ATTACHED)
             {
                 return;
             }
@@ -1187,7 +1133,7 @@ namespace EvenBetterJoy.Models
 
         private void SendRumble(byte[] buf)
         {
-            var buf_ = new byte[report_len];
+            var buf_ = new byte[Constants.REPORT_LENGTH];
             buf_[0] = 0x10;
             buf_[1] = global_count;
 
@@ -1202,13 +1148,12 @@ namespace EvenBetterJoy.Models
 
             Array.Copy(buf, 0, buf_, 2, 8);
             PrintArray(buf_, ControllerDebugMode.RUMBLE, format: "Rumble data sent: {0:S}");
-            HidApi.HidWrite(handle, buf_, new UIntPtr(report_len));
+            deviceService.Write(Handle, buf_);
         }
 
         private byte[] Subcommand(byte sc, byte[] buf, uint len, bool print = true)
         {
-            byte[] buf_ = new byte[report_len];
-            byte[] response = new byte[report_len];
+            byte[] buf_ = new byte[Constants.REPORT_LENGTH];
             Array.Copy(default_buf, 0, buf_, 2, 8);
             Array.Copy(buf, 0, buf_, 11, len);
             buf_[10] = sc;
@@ -1229,31 +1174,33 @@ namespace EvenBetterJoy.Models
                 PrintArray(buf_, ControllerDebugMode.COMMS, len, 11, "Subcommand 0x" + string.Format("{0:X2}", sc) + " sent. Data: 0x{0:S}");
             }
 
-            HidApi.HidWrite(handle, buf_, new UIntPtr(len + 11));
+            //TODO: I don't like this +11 hardcoded, but can it be calculated?
+            deviceService.Write(Handle, buf_, len + 11);
 
             //TODO: does this really need to be a do while?
-            int tries = 0;
+            byte[] data;
+            var tries = 0;
             do
             {
-                int res = HidApi.HidReadTimeout(handle, response, new UIntPtr(report_len), 100);
-                if (res < 1)
+                data = deviceService.Read(Handle, 100);
+                if (data.Length == 0)
                 {
                     DebugPrint("No response.", ControllerDebugMode.COMMS);
                 }
                 else if (print)
                 {
-                    PrintArray(response, ControllerDebugMode.COMMS, report_len - 1, 1, "Response ID 0x" + string.Format("{0:X2}", response[0]) + ". Data: 0x{0:S}");
+                    PrintArray(data, ControllerDebugMode.COMMS, Constants.REPORT_LENGTH - 1, 1, "Response ID 0x" + string.Format("{0:X2}", data[0]) + ". Data: 0x{0:S}");
                 }
 
                 tries++;
-            } while (tries < 10 && response[0] != 0x21 && response[14] != sc);
+            } while (tries < 10 && data[0] != 0x21 && data[14] != sc);
 
-            return response;
+            return data;
         }
 
         private void LoadCalibrationData()
         {
-            if (isSnes)
+            if (Type == ControllerType.SNES_CONTROLLER)
             {
                 //TODO: get rid of this string parsing crap
                 short[] temp = settings.acc_sensiti.Split(',').Select(s => short.Parse(s)).ToArray();
@@ -1288,9 +1235,9 @@ namespace EvenBetterJoy.Models
                 return;
             }
 
-            HidApi.HidSetNonblocking(handle, 0);
+            deviceService.SetDeviceNonblocking(Handle, false);
 
-            byte[] buf_ = ReadSPI(0x80, isLeft ? (byte)0x12 : (byte)0x1d, 9);
+            byte[] buf_ = ReadSPI(0x80, Type == ControllerType.LEFT_JOYCON ? (byte)0x12 : (byte)0x1d, 9);
             bool found = false;
             for (int i = 0; i < 9; ++i)
             {
@@ -1305,21 +1252,21 @@ namespace EvenBetterJoy.Models
             if (!found)
             {
                 logger.LogInformation("Using factory stick calibration data.");
-                buf_ = ReadSPI(0x60, isLeft ? (byte)0x3d : (byte)0x46, 9);
+                buf_ = ReadSPI(0x60, Type == ControllerType.LEFT_JOYCON ? (byte)0x3d : (byte)0x46, 9);
             }
 
-            stick_cal[isLeft ? 0 : 2] = (ushort)((buf_[1] << 8) & 0xF00 | buf_[0]); // X Axis Max above center
-            stick_cal[isLeft ? 1 : 3] = (ushort)((buf_[2] << 4) | (buf_[1] >> 4));  // Y Axis Max above center
-            stick_cal[isLeft ? 2 : 4] = (ushort)((buf_[4] << 8) & 0xF00 | buf_[3]); // X Axis Center
-            stick_cal[isLeft ? 3 : 5] = (ushort)((buf_[5] << 4) | (buf_[4] >> 4));  // Y Axis Center
-            stick_cal[isLeft ? 4 : 0] = (ushort)((buf_[7] << 8) & 0xF00 | buf_[6]); // X Axis Min below center
-            stick_cal[isLeft ? 5 : 1] = (ushort)((buf_[8] << 4) | (buf_[7] >> 4));  // Y Axis Min below center
+            stick_cal[Type == ControllerType.LEFT_JOYCON ? 0 : 2] = (ushort)((buf_[1] << 8) & 0xF00 | buf_[0]); // X Axis Max above center
+            stick_cal[Type == ControllerType.LEFT_JOYCON ? 1 : 3] = (ushort)((buf_[2] << 4) | (buf_[1] >> 4));  // Y Axis Max above center
+            stick_cal[Type == ControllerType.LEFT_JOYCON ? 2 : 4] = (ushort)((buf_[4] << 8) & 0xF00 | buf_[3]); // X Axis Center
+            stick_cal[Type == ControllerType.LEFT_JOYCON ? 3 : 5] = (ushort)((buf_[5] << 4) | (buf_[4] >> 4));  // Y Axis Center
+            stick_cal[Type == ControllerType.LEFT_JOYCON ? 4 : 0] = (ushort)((buf_[7] << 8) & 0xF00 | buf_[6]); // X Axis Min below center
+            stick_cal[Type == ControllerType.LEFT_JOYCON ? 5 : 1] = (ushort)((buf_[8] << 4) | (buf_[7] >> 4));  // Y Axis Min below center
 
             PrintArray(stick_cal, len: 6, start: 0, format: "Stick calibration data: {0:S}");
 
-            if (isPro)
+            if (Type == ControllerType.PRO_CONTROLLER)
             {
-                buf_ = ReadSPI(0x80, !isLeft ? (byte)0x12 : (byte)0x1d, 9);
+                buf_ = ReadSPI(0x80, Type != ControllerType.LEFT_JOYCON ? (byte)0x12 : (byte)0x1d, 9);
                 found = false;
                 for (int i = 0; i < 9; ++i)
                 {
@@ -1334,23 +1281,23 @@ namespace EvenBetterJoy.Models
                 if (!found)
                 {
                     logger.LogInformation("Using factory stick calibration data.");
-                    buf_ = ReadSPI(0x60, (!isLeft ? (byte)0x3d : (byte)0x46), 9);
+                    buf_ = ReadSPI(0x60, (Type != ControllerType.LEFT_JOYCON ? (byte)0x3d : (byte)0x46), 9);
                 }
 
-                stick2_cal[!isLeft ? 0 : 2] = (ushort)((buf_[1] << 8) & 0xF00 | buf_[0]); // X Axis Max above center
-                stick2_cal[!isLeft ? 1 : 3] = (ushort)((buf_[2] << 4) | (buf_[1] >> 4));  // Y Axis Max above center
-                stick2_cal[!isLeft ? 2 : 4] = (ushort)((buf_[4] << 8) & 0xF00 | buf_[3]); // X Axis Center
-                stick2_cal[!isLeft ? 3 : 5] = (ushort)((buf_[5] << 4) | (buf_[4] >> 4));  // Y Axis Center
-                stick2_cal[!isLeft ? 4 : 0] = (ushort)((buf_[7] << 8) & 0xF00 | buf_[6]); // X Axis Min below center
-                stick2_cal[!isLeft ? 5 : 1] = (ushort)((buf_[8] << 4) | (buf_[7] >> 4));  // Y Axis Min below center
+                stick2_cal[Type != ControllerType.LEFT_JOYCON ? 0 : 2] = (ushort)((buf_[1] << 8) & 0xF00 | buf_[0]); // X Axis Max above center
+                stick2_cal[Type != ControllerType.LEFT_JOYCON ? 1 : 3] = (ushort)((buf_[2] << 4) | (buf_[1] >> 4));  // Y Axis Max above center
+                stick2_cal[Type != ControllerType.LEFT_JOYCON ? 2 : 4] = (ushort)((buf_[4] << 8) & 0xF00 | buf_[3]); // X Axis Center
+                stick2_cal[Type != ControllerType.LEFT_JOYCON ? 3 : 5] = (ushort)((buf_[5] << 4) | (buf_[4] >> 4));  // Y Axis Center
+                stick2_cal[Type != ControllerType.LEFT_JOYCON ? 4 : 0] = (ushort)((buf_[7] << 8) & 0xF00 | buf_[6]); // X Axis Min below center
+                stick2_cal[Type != ControllerType.LEFT_JOYCON ? 5 : 1] = (ushort)((buf_[8] << 4) | (buf_[7] >> 4));  // Y Axis Min below center
 
                 PrintArray(stick2_cal, len: 6, start: 0, format: "Stick calibration data: {0:S}");
 
-                buf_ = ReadSPI(0x60, !isLeft ? (byte)0x86 : (byte)0x98, 16);
+                buf_ = ReadSPI(0x60, Type != ControllerType.LEFT_JOYCON ? (byte)0x86 : (byte)0x98, 16);
                 deadzone2 = (ushort)((buf_[4] << 8) & 0xF00 | buf_[3]);
             }
 
-            buf_ = ReadSPI(0x60, isLeft ? (byte)0x86 : (byte)0x98, 16);
+            buf_ = ReadSPI(0x60, Type == ControllerType.LEFT_JOYCON ? (byte)0x86 : (byte)0x98, 16);
             deadzone = (ushort)((buf_[4] << 8) & 0xF00 | buf_[3]);
 
             buf_ = ReadSPI(0x80, 0x28, 10);
@@ -1401,7 +1348,7 @@ namespace EvenBetterJoy.Models
                 PrintArray(gyr_neutral, len: 3, d: ControllerDebugMode.IMU, format: "Factory gyro neutral position: {0:S}");
             }
 
-            HidApi.HidSetNonblocking(handle, 1);
+            deviceService.SetDeviceNonblocking(Handle);
         }
 
         private byte[] ReadSPI(byte addr1, byte addr2, uint len, bool print = false)
@@ -1450,30 +1397,22 @@ namespace EvenBetterJoy.Models
             DebugPrint(string.Format(format, tostr), d);
         }
 
-        private static OutputControllerXbox360InputState MapToXbox360Input(Joycon input)
+        private OutputControllerXbox360InputState MapToXbox360Input(Joycon input)
         {
             var output = new OutputControllerXbox360InputState();
-
-            var swapAB = input.swapAB;
-            var swapXY = input.swapXY;
-
-            var isPro = input.isPro;
-            var isLeft = input.isLeft;
-            var isSnes = input.isSnes;
             var other = input.Other;
-            var GyroAnalogSliders = input.GyroAnalogSliders;
 
             var buttons = input.buttons;
             var stick = input.stick;
             var stick2 = input.stick2;
             var sliderVal = input.sliderVal;
 
-            if (isPro)
+            if (Type == ControllerType.PRO_CONTROLLER)
             {
-                output.a = buttons[(int)(!swapAB ? ControllerButton.B : ControllerButton.A)];
-                output.b = buttons[(int)(!swapAB ? ControllerButton.A : ControllerButton.B)];
-                output.y = buttons[(int)(!swapXY ? ControllerButton.X : ControllerButton.Y)];
-                output.x = buttons[(int)(!swapXY ? ControllerButton.Y : ControllerButton.X)];
+                output.a = buttons[(int)(!settings.SwapAB ? ControllerButton.B : ControllerButton.A)];
+                output.b = buttons[(int)(!settings.SwapAB ? ControllerButton.A : ControllerButton.B)];
+                output.y = buttons[(int)(!settings.SwapXY ? ControllerButton.X : ControllerButton.Y)];
+                output.x = buttons[(int)(!settings.SwapXY ? ControllerButton.Y : ControllerButton.X)];
 
                 output.dpad_up = buttons[(int)ControllerButton.DPAD_UP];
                 output.dpad_down = buttons[(int)ControllerButton.DPAD_DOWN];
@@ -1495,33 +1434,33 @@ namespace EvenBetterJoy.Models
                 if (other != null)
                 {
                     // no need for && other != this
-                    output.a = buttons[(int)(!swapAB ? isLeft ? ControllerButton.B : ControllerButton.DPAD_DOWN : isLeft ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
-                    output.b = buttons[(int)(swapAB ? isLeft ? ControllerButton.B : ControllerButton.DPAD_DOWN : isLeft ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
-                    output.y = buttons[(int)(!swapXY ? isLeft ? ControllerButton.X : ControllerButton.DPAD_UP : isLeft ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
-                    output.x = buttons[(int)(swapXY ? isLeft ? ControllerButton.X : ControllerButton.DPAD_UP : isLeft ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
+                    output.a = buttons[(int)(!settings.SwapAB ? Type == ControllerType.LEFT_JOYCON ? ControllerButton.B : ControllerButton.DPAD_DOWN : Type == ControllerType.LEFT_JOYCON ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
+                    output.b = buttons[(int)(settings.SwapAB ? Type == ControllerType.LEFT_JOYCON ? ControllerButton.B : ControllerButton.DPAD_DOWN : Type == ControllerType.LEFT_JOYCON ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
+                    output.y = buttons[(int)(!settings.SwapXY ? Type == ControllerType.LEFT_JOYCON ? ControllerButton.X : ControllerButton.DPAD_UP : Type == ControllerType.LEFT_JOYCON ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
+                    output.x = buttons[(int)(settings.SwapXY ? Type == ControllerType.LEFT_JOYCON ? ControllerButton.X : ControllerButton.DPAD_UP : Type == ControllerType.LEFT_JOYCON ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
 
-                    output.dpad_up = buttons[(int)(isLeft ? ControllerButton.DPAD_UP : ControllerButton.X)];
-                    output.dpad_down = buttons[(int)(isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.B)];
-                    output.dpad_left = buttons[(int)(isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.Y)];
-                    output.dpad_right = buttons[(int)(isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.A)];
+                    output.dpad_up = buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_UP : ControllerButton.X)];
+                    output.dpad_down = buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_DOWN : ControllerButton.B)];
+                    output.dpad_left = buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_LEFT : ControllerButton.Y)];
+                    output.dpad_right = buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_RIGHT : ControllerButton.A)];
 
                     output.back = buttons[(int)ControllerButton.MINUS];
                     output.start = buttons[(int)ControllerButton.PLUS];
                     output.guide = buttons[(int)ControllerButton.HOME];
 
-                    output.shoulder_left = buttons[(int)(isLeft ? ControllerButton.SHOULDER_1 : ControllerButton.SHOULDER2_1)];
-                    output.shoulder_right = buttons[(int)(isLeft ? ControllerButton.SHOULDER2_1 : ControllerButton.SHOULDER_1)];
+                    output.shoulder_left = buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER_1 : ControllerButton.SHOULDER2_1)];
+                    output.shoulder_right = buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER2_1 : ControllerButton.SHOULDER_1)];
 
-                    output.thumb_stick_left = buttons[(int)(isLeft ? ControllerButton.STICK : ControllerButton.STICK2)];
-                    output.thumb_stick_right = buttons[(int)(isLeft ? ControllerButton.STICK2 : ControllerButton.STICK)];
+                    output.thumb_stick_left = buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.STICK : ControllerButton.STICK2)];
+                    output.thumb_stick_right = buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.STICK2 : ControllerButton.STICK)];
                 }
                 else
                 {
                     // single joycon mode
-                    output.a = buttons[(int)(!swapAB ? isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT : isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
-                    output.b = buttons[(int)(swapAB ? isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT : isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
-                    output.y = buttons[(int)(!swapXY ? isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT : isLeft ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
-                    output.x = buttons[(int)(swapXY ? isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT : isLeft ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
+                    output.a = buttons[(int)(!settings.SwapAB ? Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT : Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
+                    output.b = buttons[(int)(settings.SwapAB ? Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT : Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
+                    output.y = buttons[(int)(!settings.SwapXY ? Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT : Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
+                    output.x = buttons[(int)(settings.SwapXY ? Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT : Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
 
                     output.back = buttons[(int)ControllerButton.MINUS] | buttons[(int)ControllerButton.HOME];
                     output.start = buttons[(int)ControllerButton.PLUS] | buttons[(int)ControllerButton.CAPTURE];
@@ -1534,68 +1473,60 @@ namespace EvenBetterJoy.Models
             }
 
             // overwrite guide button if it's custom-mapped
-            if (Config.GetValue("home") != "0")
+            if (settings.Home != "0")
             {
                 output.guide = false;
             }
 
-            if (!isSnes)
+            if (Type != ControllerType.SNES_CONTROLLER)
             {
-                if (other != null || isPro)
+                if (other != null || Type == ControllerType.PRO_CONTROLLER)
                 { // no need for && other != this
-                    output.axis_left_x = CastStickValue((other == input && !isLeft) ? stick2[0] : stick[0]);
-                    output.axis_left_y = CastStickValue((other == input && !isLeft) ? stick2[1] : stick[1]);
+                    output.axis_left_x = CastStickValue((other == input && Type != ControllerType.LEFT_JOYCON) ? stick2[0] : stick[0]);
+                    output.axis_left_y = CastStickValue((other == input && Type != ControllerType.LEFT_JOYCON) ? stick2[1] : stick[1]);
 
-                    output.axis_right_x = CastStickValue((other == input && !isLeft) ? stick[0] : stick2[0]);
-                    output.axis_right_y = CastStickValue((other == input && !isLeft) ? stick[1] : stick2[1]);
+                    output.axis_right_x = CastStickValue((other == input && Type != ControllerType.LEFT_JOYCON) ? stick[0] : stick2[0]);
+                    output.axis_right_y = CastStickValue((other == input && Type != ControllerType.LEFT_JOYCON) ? stick[1] : stick2[1]);
                 }
                 else
                 { // single joycon mode
-                    output.axis_left_y = CastStickValue((isLeft ? 1 : -1) * stick[0]);
-                    output.axis_left_x = CastStickValue((isLeft ? -1 : 1) * stick[1]);
+                    output.axis_left_y = CastStickValue((Type == ControllerType.LEFT_JOYCON ? 1 : -1) * stick[0]);
+                    output.axis_left_x = CastStickValue((Type == ControllerType.LEFT_JOYCON ? -1 : 1) * stick[1]);
                 }
             }
 
-            if (other != null || isPro)
+            if (other != null || Type == ControllerType.PRO_CONTROLLER)
             {
-                byte lval = GyroAnalogSliders ? sliderVal[0] : byte.MaxValue;
-                byte rval = GyroAnalogSliders ? sliderVal[1] : byte.MaxValue;
-                output.trigger_left = (byte)(buttons[(int)(isLeft ? ControllerButton.SHOULDER_2 : ControllerButton.SHOULDER2_2)] ? lval : 0);
-                output.trigger_right = (byte)(buttons[(int)(isLeft ? ControllerButton.SHOULDER2_2 : ControllerButton.SHOULDER_2)] ? rval : 0);
+                byte lval = settings.GyroAnalogSliders ? sliderVal[0] : byte.MaxValue;
+                byte rval = settings.GyroAnalogSliders ? sliderVal[1] : byte.MaxValue;
+                output.trigger_left = (byte)(buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER_2 : ControllerButton.SHOULDER2_2)] ? lval : 0);
+                output.trigger_right = (byte)(buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER2_2 : ControllerButton.SHOULDER_2)] ? rval : 0);
             }
             else
             {
-                output.trigger_left = (byte)(buttons[(int)(isLeft ? ControllerButton.SHOULDER_2 : ControllerButton.SHOULDER_1)] ? byte.MaxValue : 0);
-                output.trigger_right = (byte)(buttons[(int)(isLeft ? ControllerButton.SHOULDER_1 : ControllerButton.SHOULDER_2)] ? byte.MaxValue : 0);
+                output.trigger_left = (byte)(buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER_2 : ControllerButton.SHOULDER_1)] ? byte.MaxValue : 0);
+                output.trigger_right = (byte)(buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER_1 : ControllerButton.SHOULDER_2)] ? byte.MaxValue : 0);
             }
 
             return output;
         }
 
-        public static OutputControllerDualShock4InputState MapToDualShock4Input(Joycon input)
+        public OutputControllerDualShock4InputState MapToDualShock4Input(Joycon input)
         {
             var output = new OutputControllerDualShock4InputState();
-
-            var swapAB = input.swapAB;
-            var swapXY = input.swapXY;
-
-            var isPro = input.isPro;
-            var isLeft = input.isLeft;
-            var isSnes = input.isSnes;
             var other = input.Other;
-            var GyroAnalogSliders = input.GyroAnalogSliders;
 
             var buttons = input.buttons;
             var stick = input.stick;
             var stick2 = input.stick2;
             var sliderVal = input.sliderVal;
 
-            if (isPro)
+            if (Type == ControllerType.PRO_CONTROLLER)
             {
-                output.cross = buttons[(int)(!swapAB ? ControllerButton.B : ControllerButton.A)];
-                output.circle = buttons[(int)(!swapAB ? ControllerButton.A : ControllerButton.B)];
-                output.triangle = buttons[(int)(!swapXY ? ControllerButton.X : ControllerButton.Y)];
-                output.square = buttons[(int)(!swapXY ? ControllerButton.Y : ControllerButton.X)];
+                output.cross = buttons[(int)(!settings.SwapAB ? ControllerButton.B : ControllerButton.A)];
+                output.circle = buttons[(int)(!settings.SwapAB ? ControllerButton.A : ControllerButton.B)];
+                output.triangle = buttons[(int)(!settings.SwapXY ? ControllerButton.X : ControllerButton.Y)];
+                output.square = buttons[(int)(!settings.SwapXY ? ControllerButton.Y : ControllerButton.X)];
 
 
                 if (buttons[(int)ControllerButton.DPAD_UP])
@@ -1650,19 +1581,20 @@ namespace EvenBetterJoy.Models
             {
                 if (other != null)
                 {
+                    //TODO: wtf is this useless comment trying to tell me
                     // no need for && other != this
-                    output.cross = !swapAB ? buttons[(int)(isLeft ? ControllerButton.B : ControllerButton.DPAD_DOWN)] : buttons[(int)(isLeft ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
-                    output.circle = swapAB ? buttons[(int)(isLeft ? ControllerButton.B : ControllerButton.DPAD_DOWN)] : buttons[(int)(isLeft ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
-                    output.triangle = !swapXY ? buttons[(int)(isLeft ? ControllerButton.X : ControllerButton.DPAD_UP)] : buttons[(int)(isLeft ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
-                    output.square = swapXY ? buttons[(int)(isLeft ? ControllerButton.X : ControllerButton.DPAD_UP)] : buttons[(int)(isLeft ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
+                    output.cross = !settings.SwapAB ? buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.B : ControllerButton.DPAD_DOWN)] : buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
+                    output.circle = settings.SwapAB ? buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.B : ControllerButton.DPAD_DOWN)] : buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.A : ControllerButton.DPAD_RIGHT)];
+                    output.triangle = !settings.SwapXY ? buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.X : ControllerButton.DPAD_UP)] : buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
+                    output.square = settings.SwapXY ? buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.X : ControllerButton.DPAD_UP)] : buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.Y : ControllerButton.DPAD_LEFT)];
 
-                    if (buttons[(int)(isLeft ? ControllerButton.DPAD_UP : ControllerButton.X)])
+                    if (buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_UP : ControllerButton.X)])
                     {
-                        if (buttons[(int)(isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.Y)])
+                        if (buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_LEFT : ControllerButton.Y)])
                         {
                             output.dPad = ControllerDpadDirection.Northwest;
                         }
-                        else if (buttons[(int)(isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.A)])
+                        else if (buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_RIGHT : ControllerButton.A)])
                         {
                             output.dPad = ControllerDpadDirection.Northeast;
                         }
@@ -1671,13 +1603,13 @@ namespace EvenBetterJoy.Models
                             output.dPad = ControllerDpadDirection.North;
                         }
                     }
-                    else if (buttons[(int)(isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.B)])
+                    else if (buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_DOWN : ControllerButton.B)])
                     {
-                        if (buttons[(int)(isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.Y)])
+                        if (buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_LEFT : ControllerButton.Y)])
                         {
                             output.dPad = ControllerDpadDirection.Southwest;
                         }
-                        else if (buttons[(int)(isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.A)])
+                        else if (buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_RIGHT : ControllerButton.A)])
                         {
                             output.dPad = ControllerDpadDirection.Southeast;
                         }
@@ -1686,11 +1618,11 @@ namespace EvenBetterJoy.Models
                             output.dPad = ControllerDpadDirection.South;
                         }
                     }
-                    else if (buttons[(int)(isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.Y)])
+                    else if (buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_LEFT : ControllerButton.Y)])
                     {
                         output.dPad = ControllerDpadDirection.West;
                     }
-                    else if (buttons[(int)(isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.A)])
+                    else if (buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_RIGHT : ControllerButton.A)])
                     {
                         output.dPad = ControllerDpadDirection.East;
                     }
@@ -1699,18 +1631,18 @@ namespace EvenBetterJoy.Models
                     output.options = buttons[(int)ControllerButton.PLUS];
                     output.ps = buttons[(int)ControllerButton.HOME];
                     output.touchpad = buttons[(int)ControllerButton.MINUS];
-                    output.shoulder_left = buttons[(int)(isLeft ? ControllerButton.SHOULDER_1 : ControllerButton.SHOULDER2_1)];
-                    output.shoulder_right = buttons[(int)(isLeft ? ControllerButton.SHOULDER2_1 : ControllerButton.SHOULDER_1)];
-                    output.thumb_left = buttons[(int)(isLeft ? ControllerButton.STICK : ControllerButton.STICK2)];
-                    output.thumb_right = buttons[(int)(isLeft ? ControllerButton.STICK2 : ControllerButton.STICK)];
+                    output.shoulder_left = buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER_1 : ControllerButton.SHOULDER2_1)];
+                    output.shoulder_right = buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER2_1 : ControllerButton.SHOULDER_1)];
+                    output.thumb_left = buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.STICK : ControllerButton.STICK2)];
+                    output.thumb_right = buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.STICK2 : ControllerButton.STICK)];
                 }
                 else
                 {
                     // single joycon mode
-                    output.cross = !swapAB ? buttons[(int)(isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT)] : buttons[(int)(isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
-                    output.circle = swapAB ? buttons[(int)(isLeft ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT)] : buttons[(int)(isLeft ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
-                    output.triangle = !swapXY ? buttons[(int)(isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT)] : buttons[(int)(isLeft ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
-                    output.square = swapXY ? buttons[(int)(isLeft ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT)] : buttons[(int)(isLeft ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
+                    output.cross = !settings.SwapAB ? buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT)] : buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
+                    output.circle = settings.SwapAB ? buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_LEFT : ControllerButton.DPAD_RIGHT)] : buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_DOWN : ControllerButton.DPAD_UP)];
+                    output.triangle = !settings.SwapXY ? buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT)] : buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
+                    output.square = settings.SwapXY ? buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_RIGHT : ControllerButton.DPAD_LEFT)] : buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.DPAD_UP : ControllerButton.DPAD_DOWN)];
 
                     output.ps = buttons[(int)ControllerButton.MINUS] | buttons[(int)ControllerButton.HOME];
                     output.options = buttons[(int)ControllerButton.PLUS] | buttons[(int)ControllerButton.CAPTURE];
@@ -1723,40 +1655,40 @@ namespace EvenBetterJoy.Models
             }
 
             // overwrite guide button if it's custom-mapped
-            if (Config.GetValue("home") != "0")
+            if (settings.Home != "0")
             {
                 output.ps = false;
             }
 
-            if (!isSnes)
+            if (Type != ControllerType.SNES_CONTROLLER)
             {
-                if (other != null || isPro)
+                if (other != null || Type == ControllerType.PRO_CONTROLLER)
                 {
                     // no need for && other != this
-                    output.thumb_left_x = CastStickValueByte((other == input && !isLeft) ? -stick2[0] : -stick[0]);
-                    output.thumb_left_y = CastStickValueByte((other == input && !isLeft) ? stick2[1] : stick[1]);
-                    output.thumb_right_x = CastStickValueByte((other == input && !isLeft) ? -stick[0] : -stick2[0]);
-                    output.thumb_right_y = CastStickValueByte((other == input && !isLeft) ? stick[1] : stick2[1]);
+                    output.thumb_left_x = CastStickValueByte((other == input && Type != ControllerType.LEFT_JOYCON) ? -stick2[0] : -stick[0]);
+                    output.thumb_left_y = CastStickValueByte((other == input && Type != ControllerType.LEFT_JOYCON) ? stick2[1] : stick[1]);
+                    output.thumb_right_x = CastStickValueByte((other == input && Type != ControllerType.LEFT_JOYCON) ? -stick[0] : -stick2[0]);
+                    output.thumb_right_y = CastStickValueByte((other == input && Type != ControllerType.LEFT_JOYCON) ? stick[1] : stick2[1]);
                 }
                 else
                 {
                     // single joycon mode
-                    output.thumb_left_y = CastStickValueByte((isLeft ? 1 : -1) * stick[0]);
-                    output.thumb_left_x = CastStickValueByte((isLeft ? 1 : -1) * stick[1]);
+                    output.thumb_left_y = CastStickValueByte((Type == ControllerType.LEFT_JOYCON ? 1 : -1) * stick[0]);
+                    output.thumb_left_x = CastStickValueByte((Type == ControllerType.LEFT_JOYCON ? 1 : -1) * stick[1]);
                 }
             }
 
-            if (other != null || isPro)
+            if (other != null || Type == ControllerType.PRO_CONTROLLER)
             {
-                byte lval = GyroAnalogSliders ? sliderVal[0] : byte.MaxValue;
-                byte rval = GyroAnalogSliders ? sliderVal[1] : byte.MaxValue;
-                output.trigger_left_value = (byte)(buttons[(int)(isLeft ? ControllerButton.SHOULDER_2 : ControllerButton.SHOULDER2_2)] ? lval : 0);
-                output.trigger_right_value = (byte)(buttons[(int)(isLeft ? ControllerButton.SHOULDER2_2 : ControllerButton.SHOULDER_2)] ? rval : 0);
+                byte lval = settings.GyroAnalogSliders ? sliderVal[0] : byte.MaxValue;
+                byte rval = settings.GyroAnalogSliders ? sliderVal[1] : byte.MaxValue;
+                output.trigger_left_value = (byte)(buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER_2 : ControllerButton.SHOULDER2_2)] ? lval : 0);
+                output.trigger_right_value = (byte)(buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER2_2 : ControllerButton.SHOULDER_2)] ? rval : 0);
             }
             else
             {
-                output.trigger_left_value = (byte)(buttons[(int)(isLeft ? ControllerButton.SHOULDER_2 : ControllerButton.SHOULDER_1)] ? byte.MaxValue : 0);
-                output.trigger_right_value = (byte)(buttons[(int)(isLeft ? ControllerButton.SHOULDER_1 : ControllerButton.SHOULDER_2)] ? byte.MaxValue : 0);
+                output.trigger_left_value = (byte)(buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER_2 : ControllerButton.SHOULDER_1)] ? byte.MaxValue : 0);
+                output.trigger_right_value = (byte)(buttons[(int)(Type == ControllerType.LEFT_JOYCON ? ControllerButton.SHOULDER_1 : ControllerButton.SHOULDER_2)] ? byte.MaxValue : 0);
             }
 
             // Output digital L2 / R2 in addition to analog L2 / R2

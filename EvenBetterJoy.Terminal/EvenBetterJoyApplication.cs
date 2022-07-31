@@ -1,13 +1,15 @@
 ﻿using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
-using EvenBetterJoy.Models;
-using EvenBetterJoy.Services;
+using EvenBetterJoy.Domain.Services;
+using EvenBetterJoy.Domain.Models;
+using EvenBetterJoy.Domain.Hid;
 
 namespace EvenBetterJoy.Terminal
 {
     public class EvenBetterJoyApplication : IEvenBetterJoyApplication
     {
         private readonly IJoyconManager joyconManager;
+        private readonly IHidService hidService;
         private readonly IHidGuardianService hidGuardianService;
         private readonly IVirtualGamepadService virtualGamepadService;
         private readonly ICommunicationService communicationService;
@@ -16,6 +18,7 @@ namespace EvenBetterJoy.Terminal
 
         public EvenBetterJoyApplication(
             IJoyconManager joyconManager,
+            IHidService hidService,
             IHidGuardianService hidGuardianService,
             IVirtualGamepadService virtualGamepadService,
             ICommunicationService communicationService,
@@ -23,6 +26,7 @@ namespace EvenBetterJoy.Terminal
             IOptions<Settings> settings)
         {
             this.joyconManager = joyconManager;
+            this.hidService = hidService;
             this.hidGuardianService = hidGuardianService;
             this.virtualGamepadService = virtualGamepadService;
             this.communicationService = communicationService;
@@ -32,6 +36,8 @@ namespace EvenBetterJoy.Terminal
 
         public void Start()
         {
+            hidService.Initialize();
+
             if (settings.UseHidg)
             {
                 logger.LogInformation("HidGuardian is enabled.");
@@ -53,6 +59,8 @@ namespace EvenBetterJoy.Terminal
 
         public void Stop()
         {
+            hidService.CleanUp();
+
             if (settings.UseHidg)
             {
                 hidGuardianService.Stop();

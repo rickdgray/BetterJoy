@@ -1,4 +1,4 @@
-﻿namespace EvenBetterJoy.Models
+﻿namespace EvenBetterJoy.Domain.Models
 {
     public class OutputControllerDualShock4InputState
     {
@@ -21,7 +21,7 @@
         public bool thumb_left;
         public bool thumb_right;
 
-        public DpadDirection dPad;
+        public ControllerDpadDirection dPad;
 
         public byte thumb_left_x;
         public byte thumb_left_y;

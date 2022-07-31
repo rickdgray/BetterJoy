@@ -1,9 +1,10 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace EvenBetterJoy.Models
+namespace EvenBetterJoy.Domain.Hid
 {
     public struct DeviceInfo
     {
+        [Obsolete("Path is not well documented or reliable")]
         [MarshalAs(UnmanagedType.LPStr)]
         public string path;
         public ushort vendor_id;
@@ -19,5 +20,5 @@ namespace EvenBetterJoy.Models
         public ushort usage;
         public int interface_number;
         public IntPtr next;
-    };
+    }
 }

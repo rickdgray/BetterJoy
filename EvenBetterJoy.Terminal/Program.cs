@@ -1,8 +1,10 @@
 ﻿using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using EvenBetterJoy.Services;
-using EvenBetterJoy.Models;
+using Microsoft.Extensions.Logging;
+using EvenBetterJoy.Domain.Services;
+using EvenBetterJoy.Domain.Models;
+using EvenBetterJoy.Domain.Hid;
 
 namespace EvenBetterJoy.Terminal
 {
@@ -16,7 +18,7 @@ namespace EvenBetterJoy.Terminal
                 .UseContentRoot(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location))
                 .ConfigureLogging(logging =>
                 {
-                    // TODO: add logger
+                    logging.AddConsole();
                 })
                 .ConfigureServices((context, services) =>
                 {
@@ -24,11 +26,11 @@ namespace EvenBetterJoy.Terminal
                     services
                         .AddHostedService<ApplicationHostedService>()
                         .AddTransient<IEvenBetterJoyApplication, EvenBetterJoyApplication>()
+                        .AddTransient<IHidService, HidService>()
                         .AddSingleton<IJoyconManager, JoyconManager>()
                         .AddSingleton<IVirtualGamepadService, VirtualGamepadService>()
                         .AddSingleton<IHidGuardianService, HidGuardianService>()
                         .AddSingleton<ICommunicationService, CommunicationService>()
-                        .AddSingleton<IDeviceService, DeviceService>()
                         .AddSingleton<ISettingsService, SettingsService>();
 
                     services

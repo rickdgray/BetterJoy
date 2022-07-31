@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Nefarius.ViGEm.Client;
 
-namespace EvenBetterJoy.Services
+namespace EvenBetterJoy.Domain.Services
 {
     public class VirtualGamepadService : IVirtualGamepadService
     {
@@ -19,13 +19,11 @@ namespace EvenBetterJoy.Services
         {
             try
             {
-                //TODO: can we DI this?
-                //https://github.com/ViGEm/ViGEm.NET
                 virtualGamepad = new ViGEmClient();
             }
-            catch
+            catch (Exception ex)
             {
-                logger.LogError("Could not start VigemBus. Make sure drivers are installed correctly.");
+                logger.LogError(ex, "Failed to start virtual gamepad. Make sure drivers are installed correctly.");
             }
         }
 
