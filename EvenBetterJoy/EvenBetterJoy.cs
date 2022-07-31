@@ -5,6 +5,7 @@ using EvenBetterJoy.Domain;
 using EvenBetterJoy.Domain.Services;
 using EvenBetterJoy.Domain.Models;
 using EvenBetterJoy.Domain.Hid;
+using EvenBetterJoy.Domain.VirtualController;
 
 namespace EvenBetterJoy
 {
@@ -13,7 +14,7 @@ namespace EvenBetterJoy
         private readonly IJoyconManager joyconManager;
         private readonly IHidService hidService;
         private readonly IHidGuardianService hidGuardianService;
-        private readonly IVirtualGamepadService virtualGamepadService;
+        private readonly IVirtualControllerService virtualControllerService;
         private readonly ICommunicationService communicationService;
         private readonly ILogger logger;
         private readonly Settings settings;
@@ -22,7 +23,7 @@ namespace EvenBetterJoy
             IJoyconManager joyconManager,
             IHidService hidService,
             IHidGuardianService hidGuardianService,
-            IVirtualGamepadService virtualGamepadService,
+            IVirtualControllerService virtualControllerService,
             ICommunicationService communicationService,
             ILogger<EvenBetterJoy> logger,
             IOptions<Settings> settings)
@@ -30,7 +31,7 @@ namespace EvenBetterJoy
             this.joyconManager = joyconManager;
             this.hidService = hidService;
             this.hidGuardianService = hidGuardianService;
-            this.virtualGamepadService = virtualGamepadService;
+            this.virtualControllerService = virtualControllerService;
             this.communicationService = communicationService;
             this.logger = logger;
             this.settings = settings.Value;
@@ -40,16 +41,12 @@ namespace EvenBetterJoy
         {
             logger.LogDebug("Starting application.");
             hidService.Initialize();
+            virtualControllerService.Start();
 
             if (settings.UseHidg)
             {
                 logger.LogInformation("HidGuardian is enabled.");
                 hidGuardianService.Start();
-            }
-
-            if (settings.ShowAsXInput || settings.ShowAsDS4)
-            {
-                virtualGamepadService.Start();
             }
 
             communicationService.Start();

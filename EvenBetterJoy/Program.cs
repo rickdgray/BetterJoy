@@ -6,6 +6,7 @@ using EvenBetterJoy.Domain;
 using EvenBetterJoy.Domain.Services;
 using EvenBetterJoy.Domain.Models;
 using EvenBetterJoy.Domain.Hid;
+using EvenBetterJoy.Domain.VirtualController;
 
 namespace EvenBetterJoy
 {
@@ -26,7 +27,7 @@ namespace EvenBetterJoy
                         .AddHostedService<EvenBetterJoy>()
                         .AddTransient<IHidService, HidService>()
                         .AddSingleton<IJoyconManager, JoyconManager>()
-                        .AddSingleton<IVirtualGamepadService, VirtualGamepadService>()
+                        .AddSingleton<IVirtualControllerService, VirtualControllerService>()
                         .AddSingleton<IHidGuardianService, HidGuardianService>()
                         .AddSingleton<ICommunicationService, CommunicationService>()
                         .AddSingleton<ISettingsService, SettingsService>();

@@ -1,8 +1,8 @@
 ﻿using Nefarius.ViGEm.Client;
 
-namespace EvenBetterJoy.Domain.Services
+namespace EvenBetterJoy.Domain.VirtualController
 {
-    public interface IVirtualGamepadService
+    public interface IVirtualControllerService
     {
         void Start();
         ViGEmClient Get();

@@ -1,6 +1,6 @@
-﻿namespace EvenBetterJoy.Domain.VirtualGamepad
+﻿namespace EvenBetterJoy.Domain.VirtualController
 {
-    public class OutputControllerXbox360InputState
+    public class VirtualControllerState
     {
         // buttons
         public bool thumb_stick_left;
@@ -38,7 +38,7 @@
 
         public override bool Equals(object other)
         {
-            if (other is not OutputControllerXbox360InputState otherState)
+            if (other is not VirtualControllerState otherState)
             {
                 return false;
             }
@@ -71,12 +71,12 @@
             return buttons && dpad && axis && triggers;
         }
 
-        public static bool operator ==(OutputControllerXbox360InputState left, OutputControllerXbox360InputState right)
+        public static bool operator ==(VirtualControllerState left, VirtualControllerState right)
         {
             return left.Equals(right);
         }
 
-        public static bool operator !=(OutputControllerXbox360InputState left, OutputControllerXbox360InputState right)
+        public static bool operator !=(VirtualControllerState left, VirtualControllerState right)
         {
             return !(left == right);
         }

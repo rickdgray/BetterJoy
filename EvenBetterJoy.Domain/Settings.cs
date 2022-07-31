@@ -4,18 +4,15 @@ namespace EvenBetterJoy.Domain.Models
 {
     public class Settings
     {
-        public bool ProgressiveScan { get; set; } = true;
+        public int ControllerScanRate { get; set; }
         public bool UseHidg { get; set; }
         public bool MotionServer { get; set; }
         public bool StartInTray { get; set; }
         //TODO: probably can switch off array here
         public List<KeyValuePair<string, float[]>> CalibrationData { get; set; }
-        public ControllerDebugMode ControllerDebugMode { get; set; }
         public int LowFreqRumble { get; set; }
         public int HighFreqRumble { get; set; }
         public bool EnableRumble { get; set; }
-        public bool ShowAsXInput { get; set; }
-        public bool ShowAsDS4 { get; set; }
         public bool UseIncrementalLights { get; set; }
         [Obsolete("switch to full remapping")]
         public bool SwapAB { get; set; }

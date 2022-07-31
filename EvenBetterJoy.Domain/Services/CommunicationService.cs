@@ -283,7 +283,7 @@ namespace EvenBetterJoy.Domain.Services
                     socket.BeginReceiveFrom(recvBuffer, 0, recvBuffer.Length, SocketFlags.None, ref newClientEP, ReceiveCallback, socket);
                 }
             }
-            catch (SocketException ex)
+            catch (SocketException)
             {
                 uint IOC_IN = 0x80000000;
                 uint IOC_VENDOR = 0x18000000;
@@ -542,8 +542,8 @@ namespace EvenBetterJoy.Domain.Services
                     {
                         clientsList.Add(cl.Key);
                     }
-                    else if ((hidReport.PadId >= 0 && hidReport.PadId <= 3) &&
-                             (now - cl.Value.PadIdsTime[(byte)hidReport.PadId]).TotalSeconds < TimeoutLimit)
+                    else if ((hidReport.padId >= 0 && hidReport.padId <= 3) &&
+                             (now - cl.Value.PadIdsTime[(byte)hidReport.padId]).TotalSeconds < TimeoutLimit)
                     {
                         clientsList.Add(cl.Key);
                     }
@@ -602,7 +602,7 @@ namespace EvenBetterJoy.Domain.Services
             Array.Copy(BitConverter.GetBytes((uint)ControllerMessageType.DSUS_PadDataRsp), 0, outputData, outIdx, 4);
             outIdx += 4;
 
-            outputData[outIdx++] = (byte)hidReport.PadId;
+            outputData[outIdx++] = (byte)hidReport.padId;
             outputData[outIdx++] = (byte)hidReport.constate;
             outputData[outIdx++] = (byte)hidReport.model;
             outputData[outIdx++] = (byte)hidReport.connection;

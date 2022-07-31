@@ -61,7 +61,12 @@ namespace EvenBetterJoy.Domain.Hid
 
         public IntPtr OpenDevice(int productId, string serialNumber)
         {
-            return hid_open(NINTENDO, Convert.ToUInt16(productId), serialNumber);
+            var handle = hid_open(NINTENDO, Convert.ToUInt16(productId), serialNumber);
+            if (handle == IntPtr.Zero)
+            {
+                throw new Exception(GetError(handle));
+            }
+            return handle;
         }
 
         public void Write(IntPtr device, byte[] data, int? length = null)

@@ -1,26 +1,20 @@
 ﻿using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
-using System.Collections.Concurrent;
-using System.Timers;
 using EvenBetterJoy.Domain.Services;
 using EvenBetterJoy.Domain.Models;
 using EvenBetterJoy.Domain.Hid;
+using EvenBetterJoy.Domain.VirtualController;
 
 namespace EvenBetterJoy.Domain
 {
     public class JoyconManager : IJoyconManager
     {
-        public bool EnableIMU = true;
-        public bool EnableLocalize = false;
-
-        private readonly ConcurrentDictionary<string, Joycon> joycons;
-
-        System.Timers.Timer joyconPoller;
+        private readonly Dictionary<string, Joycon> joycons;
 
         private readonly IHidService hidService;
         private readonly IHidGuardianService hidGuardianService;
         private readonly ICommunicationService communicationService;
-        private readonly IVirtualGamepadService virtualGamepadService;
+        private readonly IVirtualControllerService virtualControllerService;
         private readonly ILogger logger;
         private readonly ILogger joyconLogger;
         private readonly Settings settings;
@@ -29,7 +23,7 @@ namespace EvenBetterJoy.Domain
             IHidService hidService,
             IHidGuardianService hidGuardianService,
             ICommunicationService communicationService,
-            IVirtualGamepadService virtualGamepadService,
+            IVirtualControllerService virtualControllerService,
             ILogger<JoyconManager> logger,
             IOptions<Settings> settings,
             IServiceProvider serviceProvider)
@@ -37,37 +31,30 @@ namespace EvenBetterJoy.Domain
             this.hidService = hidService;
             this.hidGuardianService = hidGuardianService;
             this.communicationService = communicationService;
-            this.virtualGamepadService = virtualGamepadService;
+            this.virtualControllerService = virtualControllerService;
             this.logger = logger;
             this.settings = settings.Value;
 
             //hold reference to pass to joycons since they are not dependency injected
             joyconLogger = serviceProvider.GetService(typeof(ILogger<Joycon>)) as ILogger<Joycon>;
 
-            joycons = new ConcurrentDictionary<string, Joycon>();
+            joycons = new Dictionary<string, Joycon>();
         }
 
         public async Task Start(CancellationToken cancellationToken)
         {
-            joyconPoller = new System.Timers.Timer(2000);
-            joyconPoller.Elapsed += PollJoycons;
-            joyconPoller.Start();
-        }
-
-        private void PollJoycons(object source, ElapsedEventArgs e)
-        {
-            CleanUpDropped();
-
-            if (settings.ProgressiveScan)
+            while(!cancellationToken.IsCancellationRequested)
             {
-                CheckForNewControllers();
+                CleanUpDropped();
+                CheckForNewControllers(cancellationToken);
+                await Task.Delay(settings.ControllerScanRate, cancellationToken);
             }
         }
 
         private void CleanUpDropped()
         {
-            var disconnectedJoycons = new List<Joycon>();
-            foreach ((_, Joycon joycon) in joycons)
+            var disconnected = new List<string>();
+            foreach ((var serialNumber, var joycon) in joycons)
             {
                 if (joycon.State == ControllerState.DROPPED)
                 {
@@ -78,25 +65,24 @@ namespace EvenBetterJoy.Domain
                     }
 
                     joycon.Detach(true);
-                    disconnectedJoycons.Add(joycon);
+                    disconnected.Add(serialNumber);
 
                     logger.LogInformation("Removed dropped controller. Can be reconnected.");
                 }
             }
 
-            foreach (Joycon disconnectedJoycon in disconnectedJoycons)
+            foreach (var serialNumber in disconnected)
             {
-                joycons.TryRemove(disconnectedJoycon.serial_number, out _);
+                joycons.Remove(serialNumber);
             }
         }
 
-        public void CheckForNewControllers()
+        public void CheckForNewControllers(CancellationToken cancellationToken)
         {
             var foundNew = false;
             foreach ((var productId, var serialNumber) in hidService.GetAllNintendoControllers())
             {
-                var controllerType = (ControllerType)productId;
-                if (controllerType == ControllerType.UNKNOWN)
+                if ((ControllerType)productId == ControllerType.UNKNOWN)
                 {
                     continue;
                 }
@@ -111,19 +97,12 @@ namespace EvenBetterJoy.Domain
                     //TODO: revisit this later; try not to use path
                     //hidGuardianService.Block(current.path);
                 }
+                
+                var newJoycon = new Joycon(
+                    hidService, communicationService, virtualControllerService.Get(),
+                    joyconLogger, settings, productId, serialNumber, joycons.Count);
 
-                var handle = hidService.OpenDevice(productId, serialNumber);
-                if (handle == IntPtr.Zero)
-                {
-                    logger.LogError("Unable to open device.");
-                    continue;
-                }
-
-                hidService.SetDeviceNonblocking(handle);
-
-                foundNew = foundNew || joycons.TryAdd(serialNumber, new Joycon(hidService, communicationService,
-                    virtualGamepadService.Get(), joyconLogger, settings, handle, EnableIMU, EnableLocalize & EnableIMU,
-                    controllerType, serialNumber, joycons.Count));
+                foundNew = foundNew || joycons.TryAdd(serialNumber, newJoycon);
             }
 
             if (foundNew)
@@ -163,23 +142,11 @@ namespace EvenBetterJoy.Domain
                         unjoined.Other = joycon;
                         joycon.Other = unjoined;
 
-                        if (unjoined.out_xbox != null)
+                        if (unjoined.virtualController != null)
                         {
                             try
                             {
-                                unjoined.out_xbox.Disconnect();
-                            }
-                            catch
-                            {
-                                //TODO: don't use exception to handle this
-                                // it wasn't connected in the first place, go figure
-                            }
-                        }
-                        if (unjoined.out_ds4 != null)
-                        {
-                            try
-                            {
-                                unjoined.out_ds4.Disconnect();
+                                unjoined.virtualController.Disconnect();
                             }
                             catch
                             {
@@ -197,14 +164,9 @@ namespace EvenBetterJoy.Domain
             {
                 if (joycon.State == ControllerState.NOT_ATTACHED)
                 {
-                    if (joycon.out_xbox != null)
+                    if (joycon.virtualController != null)
                     {
-                        joycon.out_xbox.Connect();
-                    }
-
-                    if (joycon.out_ds4 != null)
-                    {
-                        joycon.out_ds4.Connect();
+                        joycon.virtualController.Connect();
                     }
 
                     try
@@ -219,7 +181,7 @@ namespace EvenBetterJoy.Domain
                     }
 
                     joycon.SetHomeLight(settings.HomeLedOn);
-                    var token = joycon.Begin();
+                    joycon.Begin(cancellationToken);
                 }
             }
         }
@@ -235,18 +197,11 @@ namespace EvenBetterJoy.Domain
 
                 joycon.Detach();
 
-                if (joycon.out_xbox != null)
+                if (joycon.virtualController != null)
                 {
-                    joycon.out_xbox.Disconnect();
-                }
-
-                if (joycon.out_ds4 != null)
-                {
-                    joycon.out_ds4.Disconnect();
+                    joycon.virtualController.Disconnect();
                 }
             }
-
-            joyconPoller.Stop();
         }
     }
 }
