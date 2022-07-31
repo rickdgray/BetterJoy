@@ -202,7 +202,7 @@ namespace EvenBetterJoy.Terminal
                 }
             }
 
-            deviceService.ReleaseDeviceInfoLinkedList(deviceListHead);
+            deviceService.ReleaseDeviceInfoList(deviceListHead);
 
             foreach ((_, Joycon joycon) in joycons)
             {

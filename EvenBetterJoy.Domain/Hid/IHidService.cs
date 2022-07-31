@@ -5,7 +5,7 @@
         void Initialize();
         void CleanUp();
         IntPtr GetDeviceInfoListHead();
-        void ReleaseDeviceInfoLinkedList(IntPtr deviceListHead);
+        void ReleaseDeviceInfoList(IntPtr deviceListHead);
         DeviceInfo GetDeviceInfo(IntPtr device);
         IntPtr OpenDevice(ushort productId, string serialNumber);
         void Write(IntPtr device, byte[] data, uint? length = null);

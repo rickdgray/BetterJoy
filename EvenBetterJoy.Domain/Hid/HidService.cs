@@ -42,7 +42,7 @@ namespace EvenBetterJoy.Domain.Hid
             return hid_enumerate(NINTENDO, ALL);
         }
 
-        public void ReleaseDeviceInfoLinkedList(IntPtr deviceList)
+        public void ReleaseDeviceInfoList(IntPtr deviceList)
         {
             hid_free_enumeration(deviceList);
         }
