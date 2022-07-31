@@ -751,7 +751,7 @@ namespace EvenBetterJoy.Domain.Models
             //}
         }
 
-        public Task Begin(CancellationToken cancellationToken)
+        public Task Begin(CancellationToken? cancellationToken = null)
         {
             return Task.Factory.StartNew(() =>
             {
@@ -760,7 +760,7 @@ namespace EvenBetterJoy.Domain.Models
                 var attempts = 0;
                 while (true)
                 {
-                    if (cancellationToken.IsCancellationRequested)
+                    if (cancellationToken?.IsCancellationRequested ?? false)
                     {
                         logger.LogInformation($"Stopped listening to {serial_number}.");
                         return;
@@ -789,7 +789,7 @@ namespace EvenBetterJoy.Domain.Models
                         attempts++;
                     }
                 }
-            }, cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            }, cancellationToken ?? CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
         public float[] otherStick = { 0, 0 };
