@@ -4,7 +4,7 @@
     {
         void Initialize();
         void CleanUp();
-        List<Tuple<int, string>> GetAllNintendoControllers();
+        List<ControllerInfo> GetAllNintendoControllers();
         IntPtr OpenDevice(int productId, string serialNumber);
         void Write(IntPtr device, byte[] data, int? length = null);
         byte[] Read(IntPtr device, int? milliseconds = null);

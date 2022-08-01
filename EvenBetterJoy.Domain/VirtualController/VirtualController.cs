@@ -15,11 +15,11 @@ namespace EvenBetterJoy.Domain.VirtualController
         public VirtualController(ViGEmClient client)
         {
             controller = client.CreateXbox360Controller();
-            controller.FeedbackReceived += FeedbackReceivedRcv;
+            controller.FeedbackReceived += onFeedbackReceived;
             controller.AutoSubmitReport = false;
         }
 
-        private void FeedbackReceivedRcv(object _sender, Xbox360FeedbackReceivedEventArgs e)
+        private void onFeedbackReceived(object sender, Xbox360FeedbackReceivedEventArgs e)
         {
             FeedbackReceived(e);
         }
@@ -27,8 +27,6 @@ namespace EvenBetterJoy.Domain.VirtualController
         public void Connect()
         {
             controller.Connect();
-            //TODO: why was this only on 360?
-            //UpdateInput(new OutputControllerXbox360InputState());
         }
 
         public void Disconnect()

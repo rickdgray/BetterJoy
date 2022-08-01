@@ -4,7 +4,6 @@ namespace EvenBetterJoy.Domain.Hid
 {
     public struct DeviceInfo
     {
-        [Obsolete("Path is not well documented or reliable")]
         [MarshalAs(UnmanagedType.LPStr)]
         public string path;
         public ushort vendor_id;

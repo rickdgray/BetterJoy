@@ -37,9 +37,9 @@ namespace EvenBetterJoy.Domain.Hid
             logger.LogInformation("HidApi cleaned up.");
         }
 
-        public List<Tuple<int, string>> GetAllNintendoControllers()
+        public List<ControllerInfo> GetAllNintendoControllers()
         {
-            var allControllers = new List<Tuple<int, string>>();
+            var allControllers = new List<ControllerInfo>();
 
             var deviceListHead = hid_enumerate(NINTENDO, ALL);
             var currentDevice = deviceListHead;
@@ -48,7 +48,12 @@ namespace EvenBetterJoy.Domain.Hid
                 var current = (DeviceInfo)Marshal.PtrToStructure(currentDevice, typeof(DeviceInfo));
                 if (current.serial_number != null)
                 {
-                    allControllers.Add(new Tuple<int, string>(current.product_id, current.serial_number));
+                    allControllers.Add(new ControllerInfo
+                    {
+                        ProductId = current.product_id,
+                        SerialNumber = current.serial_number,
+                        Path = current.path
+                    });
                 }
 
                 currentDevice = current.next;
