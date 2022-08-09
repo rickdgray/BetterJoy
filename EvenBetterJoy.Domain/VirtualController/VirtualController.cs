@@ -1,4 +1,5 @@
-﻿using Nefarius.ViGEm.Client;
+﻿using EvenBetterJoy.Domain.Models;
+using Nefarius.ViGEm.Client;
 using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 
@@ -9,13 +10,13 @@ namespace EvenBetterJoy.Domain.VirtualController
         private readonly IXbox360Controller controller;
         private VirtualControllerState currentState;
 
-        public delegate void Xbox360FeedbackReceivedEventHandler(Xbox360FeedbackReceivedEventArgs e);
-        public event Xbox360FeedbackReceivedEventHandler FeedbackReceived;
+        public delegate void FeedbackReceivedEventHandler(Xbox360FeedbackReceivedEventArgs e);
+        public event FeedbackReceivedEventHandler FeedbackReceived;
 
-        public VirtualController(ViGEmClient client)
+        public VirtualController(ViGEmClient client, ControllerType type)
         {
-            controller = client.CreateXbox360Controller();
-            controller.FeedbackReceived += onFeedbackReceived;
+            controller = client.CreateXbox360Controller(Constants.NINTENDO_VENDOR_ID, (ushort)type);
+            //controller.FeedbackReceived += onFeedbackReceived;
             controller.AutoSubmitReport = false;
         }
 

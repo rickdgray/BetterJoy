@@ -6,9 +6,6 @@ namespace EvenBetterJoy.Domain.Hid
     public class HidService : IHidService
     {
         private const string DLL = "hidapi.dll";
-        
-        private const ushort NINTENDO = 0x57e;
-        private const ushort ALL = 0x0;
 
         private readonly ILogger logger;
 
@@ -41,7 +38,7 @@ namespace EvenBetterJoy.Domain.Hid
         {
             var allControllers = new List<ControllerInfo>();
 
-            var deviceListHead = hid_enumerate(NINTENDO, ALL);
+            var deviceListHead = hid_enumerate(Constants.NINTENDO_VENDOR_ID, Constants.ALL_PRODUCT_IDS);
             var currentDevice = deviceListHead;
             while (currentDevice != IntPtr.Zero)
             {
@@ -66,7 +63,7 @@ namespace EvenBetterJoy.Domain.Hid
 
         public IntPtr OpenDevice(int productId, string serialNumber)
         {
-            var handle = hid_open(NINTENDO, Convert.ToUInt16(productId), serialNumber);
+            var handle = hid_open(Constants.NINTENDO_VENDOR_ID, Convert.ToUInt16(productId), serialNumber);
             if (handle == IntPtr.Zero)
             {
                 throw new Exception(GetError(handle));

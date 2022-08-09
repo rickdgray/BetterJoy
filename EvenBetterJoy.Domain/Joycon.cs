@@ -193,10 +193,10 @@ namespace EvenBetterJoy.Domain.Models
             
             connection = 0x02;
 
-            virtualController = new VirtualController.VirtualController(client);
+            virtualController = new VirtualController.VirtualController(client, Type);
             if (settings.EnableRumble)
             {
-                virtualController.FeedbackReceived += ReceiveRumble;
+                //virtualController.FeedbackReceived += ReceiveRumble;
             }
 
             gyroHelper = new GyroHelper(0.005f, settings.AhrsBeta);

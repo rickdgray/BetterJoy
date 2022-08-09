@@ -61,7 +61,6 @@ namespace EvenBetterJoy.Domain
                 {
                     if (joycon.Other != null)
                     {
-                        // The other of the other is the joycon itself
                         joycon.Other.Other = null;
                     }
 
@@ -161,10 +160,7 @@ namespace EvenBetterJoy.Domain
             {
                 if (joycon.State == ControllerState.NOT_ATTACHED)
                 {
-                    if (joycon.virtualController != null)
-                    {
-                        joycon.virtualController.Connect();
-                    }
+                    joycon.virtualController.Connect();
 
                     try
                     {
