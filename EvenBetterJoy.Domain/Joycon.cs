@@ -684,7 +684,7 @@ namespace EvenBetterJoy.Domain.Models
         {
             return Task.Factory.StartNew(() =>
             {
-                logger.LogInformation($"Started listening to {serialNumber}.");
+                logger.LogInformation($"Started listening to serial number: {serialNumber.ToUpperInvariant()}.");
 
                 var attempts = 0;
                 while (true)
