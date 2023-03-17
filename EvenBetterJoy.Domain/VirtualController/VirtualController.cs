@@ -1,4 +1,5 @@
-﻿using Nefarius.ViGEm.Client;
+﻿using EvenBetterJoy.Domain.Models;
+using Nefarius.ViGEm.Client;
 using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 
@@ -9,17 +10,17 @@ namespace EvenBetterJoy.Domain.VirtualController
         private readonly IXbox360Controller controller;
         private VirtualControllerState currentState;
 
-        public delegate void Xbox360FeedbackReceivedEventHandler(Xbox360FeedbackReceivedEventArgs e);
-        public event Xbox360FeedbackReceivedEventHandler FeedbackReceived;
+        public delegate void FeedbackReceivedEventHandler(Xbox360FeedbackReceivedEventArgs e);
+        public event FeedbackReceivedEventHandler FeedbackReceived;
 
-        public VirtualController(ViGEmClient client)
+        public VirtualController(ViGEmClient client, ControllerType type)
         {
-            controller = client.CreateXbox360Controller();
-            controller.FeedbackReceived += FeedbackReceivedRcv;
+            controller = client.CreateXbox360Controller(Constants.NINTENDO_VENDOR_ID, (ushort)type);
+            //controller.FeedbackReceived += onFeedbackReceived;
             controller.AutoSubmitReport = false;
         }
 
-        private void FeedbackReceivedRcv(object _sender, Xbox360FeedbackReceivedEventArgs e)
+        private void onFeedbackReceived(object sender, Xbox360FeedbackReceivedEventArgs e)
         {
             FeedbackReceived(e);
         }
@@ -27,8 +28,6 @@ namespace EvenBetterJoy.Domain.VirtualController
         public void Connect()
         {
             controller.Connect();
-            //TODO: why was this only on 360?
-            //UpdateInput(new OutputControllerXbox360InputState());
         }
 
         public void Disconnect()

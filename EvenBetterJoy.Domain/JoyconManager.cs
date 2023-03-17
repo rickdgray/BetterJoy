@@ -61,7 +61,6 @@ namespace EvenBetterJoy.Domain
                 {
                     if (joycon.Other != null)
                     {
-                        // The other of the other is the joycon itself
                         joycon.Other.Other = null;
                     }
 
@@ -81,26 +80,25 @@ namespace EvenBetterJoy.Domain
         public void CheckForNewControllers(CancellationToken cancellationToken)
         {
             var foundNew = false;
-            foreach ((var productId, var serialNumber) in hidService.GetAllNintendoControllers())
+            foreach (var controllerInfo in hidService.GetAllNintendoControllers())
             {
-                if ((ControllerType)productId == ControllerType.UNKNOWN)
+                if ((ControllerType)controllerInfo.ProductId == ControllerType.UNKNOWN)
                 {
                     continue;
                 }
 
-                if (joycons.ContainsKey(serialNumber))
+                if (joycons.ContainsKey(controllerInfo.SerialNumber))
                 {
                     continue;
                 }
                 
-                //TODO: get path from hid service
-                //hidHideService.Block(devicePath);
+                hidHideService.Block(controllerInfo.Path);
 
-                var newJoycon = new Joycon(
-                    hidService, communicationService, virtualControllerService.Get(),
-                    joyconLogger, settings, productId, serialNumber, joycons.Count);
+                var newJoycon = new Joycon(hidService, communicationService,
+                    virtualControllerService.Get(), joyconLogger, settings,
+                    controllerInfo.ProductId, controllerInfo.SerialNumber, joycons.Count);
 
-                foundNew = foundNew || joycons.TryAdd(serialNumber, newJoycon);
+                foundNew = foundNew || joycons.TryAdd(controllerInfo.SerialNumber, newJoycon);
             }
 
             if (foundNew)
@@ -162,10 +160,7 @@ namespace EvenBetterJoy.Domain
             {
                 if (joycon.State == ControllerState.NOT_ATTACHED)
                 {
-                    if (joycon.virtualController != null)
-                    {
-                        joycon.virtualController.Connect();
-                    }
+                    joycon.virtualController.Connect();
 
                     try
                     {

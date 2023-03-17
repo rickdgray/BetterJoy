@@ -6,9 +6,6 @@ namespace EvenBetterJoy.Domain.Hid
     public class HidService : IHidService
     {
         private const string DLL = "hidapi.dll";
-        
-        private const ushort NINTENDO = 0x57e;
-        private const ushort ALL = 0x0;
 
         private readonly ILogger logger;
 
@@ -37,18 +34,23 @@ namespace EvenBetterJoy.Domain.Hid
             logger.LogInformation("HidApi cleaned up.");
         }
 
-        public List<Tuple<int, string>> GetAllNintendoControllers()
+        public List<ControllerInfo> GetAllNintendoControllers()
         {
-            var allControllers = new List<Tuple<int, string>>();
+            var allControllers = new List<ControllerInfo>();
 
-            var deviceListHead = hid_enumerate(NINTENDO, ALL);
+            var deviceListHead = hid_enumerate(Constants.NINTENDO_VENDOR_ID, Constants.ALL_PRODUCT_IDS);
             var currentDevice = deviceListHead;
             while (currentDevice != IntPtr.Zero)
             {
                 var current = (DeviceInfo)Marshal.PtrToStructure(currentDevice, typeof(DeviceInfo));
                 if (current.serial_number != null)
                 {
-                    allControllers.Add(new Tuple<int, string>(current.product_id, current.serial_number));
+                    allControllers.Add(new ControllerInfo
+                    {
+                        ProductId = current.product_id,
+                        SerialNumber = current.serial_number,
+                        Path = current.path
+                    });
                 }
 
                 currentDevice = current.next;
@@ -61,7 +63,7 @@ namespace EvenBetterJoy.Domain.Hid
 
         public IntPtr OpenDevice(int productId, string serialNumber)
         {
-            var handle = hid_open(NINTENDO, Convert.ToUInt16(productId), serialNumber);
+            var handle = hid_open(Constants.NINTENDO_VENDOR_ID, Convert.ToUInt16(productId), serialNumber);
             if (handle == IntPtr.Zero)
             {
                 throw new Exception(GetError(handle));
